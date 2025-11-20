@@ -6,23 +6,60 @@ import { Navbar } from '@/components/navbar'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/8bitcn/card'
 import { Button } from '@/components/8bitcn/button'
 import { Badge } from '@/components/8bitcn/badge'
-import { Coins, Swords, ArrowRight, User, Bot } from 'lucide-react'
+import { Coins, Swords, ArrowRight, User, Bot, AlertCircle } from 'lucide-react'
+import { setStakeData } from '@/lib/stake-storage'
 
 // Mock data
 const mockBeast = { id: 1, name: 'Fire Drake', level: 15, type: 'Fire' }
 const mockOpponent = { id: 2, name: 'Thunder Wolf', level: 12, type: 'Electric', isBot: true }
+
+// Constants for stake validation
+const MIN_STAKE = 10
+const MAX_STAKE = 10000
 
 export default function BattleStartPage() {
   const router = useRouter()
   const params = useParams()
   const [stakeAmount, setStakeAmount] = useState(100)
   const [userBalance] = useState(5000)
+  const [validationError, setValidationError] = useState<string>('')
+
+  // Real-time validation
+  const validateStakeAmount = (amount: number): string => {
+    if (amount < MIN_STAKE) {
+      return `Minimum stake is ${MIN_STAKE} $RISE`
+    }
+    if (amount > MAX_STAKE) {
+      return `Maximum stake is ${MAX_STAKE} $RISE`
+    }
+    if (amount > userBalance) {
+      return 'Insufficient balance'
+    }
+    return ''
+  }
+
+  const handleStakeChange = (amount: number) => {
+    setStakeAmount(amount)
+    const error = validateStakeAmount(amount)
+    setValidationError(error)
+  }
 
   const handleStake = () => {
-    if (stakeAmount <= userBalance) {
-      // Redirect to arena
-      router.push(`/battle/${params.id}/arena`)
+    const error = validateStakeAmount(stakeAmount)
+    if (error) {
+      setValidationError(error)
+      return
     }
+
+    // Store stake data in session storage
+    setStakeData({
+      amount: stakeAmount,
+      battleId: params.id as string,
+      timestamp: Date.now()
+    })
+
+    // Redirect to arena
+    router.push(`/battle/${params.id}/arena`)
   }
 
   return (
@@ -105,17 +142,28 @@ export default function BattleStartPage() {
                   <input
                     type="number"
                     value={stakeAmount}
-                    onChange={(e) => setStakeAmount(Number(e.target.value))}
-                    min="10"
-                    max={userBalance}
-                    className="flex-1 h-12 px-4 bg-background border-4 border-input rounded-sm font-mono font-bold text-lg focus:outline-none focus:border-primary"
+                    onChange={(e) => handleStakeChange(Number(e.target.value))}
+                    min={MIN_STAKE}
+                    max={Math.min(MAX_STAKE, userBalance)}
+                    className={`flex-1 h-12 px-4 bg-background border-4 rounded-sm font-mono font-bold text-lg focus:outline-none ${
+                      validationError ? 'border-destructive' : 'border-input focus:border-primary'
+                    }`}
                   />
                   <Button
                     variant="secondary"
-                    onClick={() => setStakeAmount(userBalance)}
+                    onClick={() => handleStakeChange(Math.min(MAX_STAKE, userBalance))}
                   >
                     Max
                   </Button>
+                </div>
+                {validationError && (
+                  <div className="flex items-center gap-2 mt-2 text-destructive text-sm font-mono">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>{validationError}</span>
+                  </div>
+                )}
+                <div className="text-xs text-muted-foreground mt-2 font-mono">
+                  Min: {MIN_STAKE} $RISE | Max: {Math.min(MAX_STAKE, userBalance)} $RISE
                 </div>
               </div>
 
@@ -126,7 +174,7 @@ export default function BattleStartPage() {
                     key={amount}
                     variant="outline"
                     size="sm"
-                    onClick={() => setStakeAmount(Math.min(amount, userBalance))}
+                    onClick={() => handleStakeChange(Math.min(amount, userBalance))}
                   >
                     {amount}
                   </Button>
@@ -161,7 +209,7 @@ export default function BattleStartPage() {
             <Button
               size="lg"
               className="flex-1"
-              disabled={stakeAmount < 10 || stakeAmount > userBalance}
+              disabled={!!validationError || stakeAmount < MIN_STAKE || stakeAmount > userBalance}
               onClick={handleStake}
             >
               Stake & Enter Arena

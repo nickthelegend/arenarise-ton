@@ -9,8 +9,10 @@ import { Badge } from '@/components/8bitcn/badge'
 import { HealthBar } from '@/components/8bitcn/health-bar'
 import { useTonAddress } from '@tonconnect/ui-react'
 import { supabase } from '@/lib/supabase'
-import { Swords, Zap, Shield, Sparkles, Trophy, Loader2 } from 'lucide-react'
+import { Swords, Zap, Shield, Sparkles, Trophy, Loader2, Coins } from 'lucide-react'
 import { RealtimeChannel } from '@supabase/supabase-js'
+import { getStakeData, clearStakeData, validateStakeData } from '@/lib/stake-storage'
+import { OutcomeAnimation } from '@/components/battle/outcome-animation'
 
 interface Beast {
   id: number
@@ -72,6 +74,24 @@ export default function BattleArenaPage() {
   const [turnNumber, setTurnNumber] = useState(1)
   const [channel, setChannel] = useState<RealtimeChannel | null>(null)
   const [battleLog, setBattleLog] = useState<string[]>([])
+  const [stakeAmount, setStakeAmount] = useState<number>(0)
+  const [showOutcomeAnimation, setShowOutcomeAnimation] = useState(false)
+  const [battleOutcome, setBattleOutcome] = useState<'victory' | 'defeat' | null>(null)
+
+  // Validate stake data on mount
+  useEffect(() => {
+    if (!validateStakeData(battleId)) {
+      // No valid stake found, redirect to start page
+      router.push(`/battle/${battleId}/start`)
+      return
+    }
+    
+    // Get stake amount to display
+    const stakeData = getStakeData()
+    if (stakeData) {
+      setStakeAmount(stakeData.amount)
+    }
+  }, [battleId, router])
 
   // Get user and battle data
   useEffect(() => {
@@ -176,6 +196,16 @@ export default function BattleArenaPage() {
           if (battleData.battle) {
             setBattle(battleData.battle)
             setIsMyTurn(battleData.battle.current_turn === userId)
+            
+            // Check if battle is completed and show outcome animation
+            if (battleData.battle.status === 'completed' && !showOutcomeAnimation) {
+              const didWin = battleData.battle.winner_id === userId
+              setBattleOutcome(didWin ? 'victory' : 'defeat')
+              setShowOutcomeAnimation(true)
+              
+              // Clear stake data after battle completes
+              clearStakeData()
+            }
           }
         }
       )
@@ -236,9 +266,13 @@ export default function BattleArenaPage() {
         addToBattleLog(
           `${myBeast?.name} wins! ${opponentBeast?.name} has been defeated!`
         )
-        setTimeout(() => {
-          router.push('/battle')
-        }, 3000)
+        
+        // Show victory animation
+        setBattleOutcome('victory')
+        setShowOutcomeAnimation(true)
+        
+        // Clear stake data
+        clearStakeData()
       } else {
         setIsMyTurn(false)
         addToBattleLog("Opponent's turn...")
@@ -273,16 +307,24 @@ export default function BattleArenaPage() {
           <h1 className="text-3xl md:text-4xl font-bold text-primary mb-2 text-glow">
             BATTLE ARENA
           </h1>
-          {isCompleted ? (
-            <Badge variant={didIWin ? 'default' : 'destructive'} className="text-lg px-4 py-2">
-              <Trophy className="w-5 h-5 mr-2" />
-              {didIWin ? 'VICTORY!' : 'DEFEAT'}
-            </Badge>
-          ) : (
-            <Badge variant={isMyTurn ? 'default' : 'secondary'} className="text-lg px-4 py-2">
-              {isMyTurn ? 'YOUR TURN' : "OPPONENT'S TURN"}
-            </Badge>
-          )}
+          <div className="flex flex-col items-center gap-2">
+            {isCompleted ? (
+              <Badge variant={didIWin ? 'default' : 'destructive'} className="text-lg px-4 py-2">
+                <Trophy className="w-5 h-5 mr-2" />
+                {didIWin ? 'VICTORY!' : 'DEFEAT'}
+              </Badge>
+            ) : (
+              <Badge variant={isMyTurn ? 'default' : 'secondary'} className="text-lg px-4 py-2">
+                {isMyTurn ? 'YOUR TURN' : "OPPONENT'S TURN"}
+              </Badge>
+            )}
+            {stakeAmount > 0 && (
+              <Badge variant="outline" className="text-md px-3 py-1">
+                <Coins className="w-4 h-4 mr-2" />
+                Stake: {stakeAmount} $RISE
+              </Badge>
+            )}
+          </div>
         </div>
 
         {/* Battle Arena */}
@@ -352,19 +394,19 @@ export default function BattleArenaPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
                 {moves.slice(0, 6).map((move) => (
                   <Button
                     key={move.id}
                     variant="outline"
-                    className="h-auto flex-col items-start p-4"
+                    className="h-auto flex-col items-start p-3 sm:p-4 min-h-[88px] sm:min-h-[120px] min-w-full touch-manipulation"
                     onClick={() => handleMove(move)}
                     disabled={isExecutingMove}
                   >
-                    <div className="font-bold mb-1">{move.name}</div>
-                    <Badge variant="secondary" className="mb-2">{move.type}</Badge>
-                    <div className="text-xs text-muted-foreground">{move.description}</div>
-                    <div className="text-sm font-bold text-accent mt-2">
+                    <div className="font-bold mb-1 text-sm sm:text-base w-full text-left">{move.name}</div>
+                    <Badge variant="secondary" className="mb-2 text-xs">{move.type}</Badge>
+                    <div className="text-xs sm:text-sm text-muted-foreground line-clamp-2 w-full text-left">{move.description}</div>
+                    <div className="text-sm sm:text-base font-bold text-accent mt-2 w-full text-left">
                       {move.damage > 0 ? `${move.damage} DMG` : 'HEAL'}
                     </div>
                   </Button>
@@ -395,6 +437,17 @@ export default function BattleArenaPage() {
           </CardContent>
         </Card>
       </main>
+      
+      {/* Outcome Animation */}
+      {battleOutcome && (
+        <OutcomeAnimation
+          outcome={battleOutcome}
+          visible={showOutcomeAnimation}
+          onComplete={() => {
+            // Animation completed, user can click button to return
+          }}
+        />
+      )}
     </div>
   )
 }
