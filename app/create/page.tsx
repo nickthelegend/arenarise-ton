@@ -1,61 +1,121 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Navbar } from '@/components/navbar'
-import { Sparkles, ArrowLeft } from 'lucide-react'
+import { Sparkles, ArrowLeft, Wallet, Loader2, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/8bitcn/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/8bitcn/card'
 import { Badge } from '@/components/8bitcn/badge'
-
-const BEAST_TYPES = ['Dragon', 'Phoenix', 'Hydra', 'Griffon', 'Cerberus', 'Chimera', 'Basilisk', 'Manticore']
-const ELEMENTS = ['Fire', 'Water', 'Earth', 'Air', 'Lightning', 'Shadow', 'Ice', 'Nature']
-const RARITIES = ['Common', 'Rare', 'Epic', 'Legendary']
-
-const generateRandomBeast = () => {
-  const type = BEAST_TYPES[Math.floor(Math.random() * BEAST_TYPES.length)]
-  const element = ELEMENTS[Math.floor(Math.random() * ELEMENTS.length)]
-  const rarity = RARITIES[Math.floor(Math.random() * RARITIES.length)]
-  const id = Math.floor(Math.random() * 9999)
-  
-  // Generate stats based on rarity
-  const rarityMultiplier = {
-    'Common': 1,
-    'Rare': 1.3,
-    'Epic': 1.6,
-    'Legendary': 2
-  }[rarity]
-  
-  return {
-    name: `${type} #${id}`,
-    type,
-    element,
-    rarity,
-    id,
-    attack: Math.floor((50 + Math.random() * 50) * rarityMultiplier),
-    defense: Math.floor((30 + Math.random() * 40) * rarityMultiplier),
-    speed: Math.floor((40 + Math.random() * 60) * rarityMultiplier),
-    health: Math.floor((100 + Math.random() * 100) * rarityMultiplier)
-  }
-}
+import { useTonAddress, useTonConnectUI } from '@tonconnect/ui-react'
+import { Address, toNano } from '@ton/core'
 
 export default function CreatePage() {
+  const router = useRouter()
+  const address = useTonAddress()
+  const [tonConnectUI] = useTonConnectUI()
+  
   const [generatedBeast, setGeneratedBeast] = useState<any>(null)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isPurchasing, setIsPurchasing] = useState(false)
+  const [purchaseComplete, setPurchaseComplete] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Redirect if not connected
+  useEffect(() => {
+    if (!address) {
+      router.push('/')
+    }
+  }, [address, router])
 
   const handleGenerateBeast = async () => {
+    if (!address) {
+      setError('Please connect your wallet first')
+      return
+    }
+
     setIsGenerating(true)
+    setError(null)
     setGeneratedBeast(null)
+    setPurchaseComplete(false)
     
-    // Simulate generation animation
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    const newBeast = generateRandomBeast()
-    setGeneratedBeast(newBeast)
-    setIsGenerating(false)
+    try {
+      const response = await fetch('/api/create/beast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wallet_address: address })
+      })
+
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate beast')
+      }
+
+      setGeneratedBeast(data.beast)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
-  const cost = 0.5 // TON cost to create
+  const handlePurchase = async () => {
+    if (!generatedBeast || !address) return
+
+    setIsPurchasing(true)
+    setError(null)
+
+    try {
+      // Send 1 TON to payment address
+      const transaction = {
+        validUntil: Math.floor(Date.now() / 1000) + 360,
+        messages: [
+          {
+            address: '0QD77r9HUu7VXdz-l_pgzfDgJWdHKNgk45oza4QZ7Z1CyqUX',
+            amount: toNano('1').toString(),
+          }
+        ]
+      }
+
+      await tonConnectUI.sendTransaction(transaction)
+
+      // After payment, transfer NFT
+      const purchaseResponse = await fetch('/api/purchase/beast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          beast_id: generatedBeast.id,
+          wallet_address: address,
+          nft_address: generatedBeast.nft_address,
+          payment_verified: true
+        })
+      })
+
+      const purchaseData = await purchaseResponse.json()
+
+      if (!purchaseResponse.ok) {
+        throw new Error(purchaseData.error || 'Failed to complete purchase')
+      }
+
+      setPurchaseComplete(true)
+      
+      // Redirect to inventory after 2 seconds
+      setTimeout(() => {
+        router.push('/inventory')
+      }, 2000)
+
+    } catch (err: any) {
+      setError(err.message || 'Transaction cancelled')
+    } finally {
+      setIsPurchasing(false)
+    }
+  }
+
+  if (!address) {
+    return null
+  }
 
   return (
     <div className="min-h-screen">
@@ -76,9 +136,15 @@ export default function CreatePage() {
               CREATE BEAST
             </h1>
             <p className="text-muted-foreground font-mono">
-              Generate a random beast with unique attributes and stats
+              Generate a random beast NFT with unique attributes
             </p>
           </div>
+
+          {error && (
+            <div className="bg-destructive/20 border-2 border-destructive p-4 mb-6 text-center">
+              <p className="text-destructive font-mono text-sm">{error}</p>
+            </div>
+          )}
 
           <Card className="border-primary">
             <CardHeader>
@@ -88,77 +154,132 @@ export default function CreatePage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {/* Generation Cost Display */}
-              <div className="bg-accent/20 border-2 border-accent p-6 mb-6 text-center">
-                <div className="text-sm text-muted-foreground mb-2 font-mono">GENERATION COST</div>
-                <div className="text-3xl font-bold text-accent font-mono">{cost} TON</div>
-              </div>
+              {!generatedBeast ? (
+                <>
+                  <div className="bg-accent/20 border-2 border-accent p-6 mb-6 text-center">
+                    <div className="text-sm text-muted-foreground mb-2 font-mono">FREE GENERATION</div>
+                    <div className="text-2xl font-bold text-accent font-mono">PREVIEW YOUR BEAST</div>
+                  </div>
 
-              {/* Generate Button */}
-              <Button
-                onClick={handleGenerateBeast}
-                disabled={isGenerating}
-                size="lg"
-                className="w-full mb-6"
-              >
-                {isGenerating ? 'GENERATING...' : `GENERATE BEAST WITH ${cost} TON`}
-              </Button>
-
-              {generatedBeast && (
+                  <Button
+                    onClick={handleGenerateBeast}
+                    disabled={isGenerating}
+                    size="lg"
+                    className="w-full"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        GENERATING BEAST...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-5 h-5 mr-2" />
+                        GENERATE BEAST
+                      </>
+                    )}
+                  </Button>
+                </>
+              ) : (
                 <div className="border-2 border-primary p-6 bg-muted/50 animate-in fade-in duration-500">
-                  <div className="text-center mb-6">
-                    <div className="text-6xl mb-4">🐉</div>
-                    <h3 className="text-2xl font-bold text-foreground mb-2">
-                      {generatedBeast.name}
-                    </h3>
-                    <div className="flex gap-2 justify-center items-center flex-wrap">
-                      <Badge variant="default">{generatedBeast.type}</Badge>
-                      <Badge variant="secondary">{generatedBeast.element}</Badge>
-                      <Badge 
-                        variant={
-                          generatedBeast.rarity === 'Legendary' ? 'default' : 
-                          generatedBeast.rarity === 'Epic' ? 'secondary' : 
-                          'outline'
-                        }
-                      >
-                        {generatedBeast.rarity}
-                      </Badge>
+                  {purchaseComplete ? (
+                    <div className="text-center py-12">
+                      <CheckCircle2 className="w-20 h-20 text-primary mx-auto mb-4" />
+                      <h3 className="text-2xl font-bold text-primary mb-2">BEAST PURCHASED!</h3>
+                      <p className="text-muted-foreground font-mono mb-4">
+                        Your beast has been minted and sent to your wallet
+                      </p>
+                      <p className="text-sm text-muted-foreground font-mono">
+                        Redirecting to inventory...
+                      </p>
                     </div>
-                  </div>
+                  ) : (
+                    <>
+                      <div className="text-center mb-6">
+                        <div className="text-6xl mb-4">🐉</div>
+                        <h3 className="text-2xl font-bold text-foreground mb-2">
+                          {generatedBeast.name}
+                        </h3>
+                        <p className="text-sm text-muted-foreground font-mono mb-4">
+                          {generatedBeast.description}
+                        </p>
+                        <div className="flex gap-2 justify-center items-center flex-wrap">
+                          {generatedBeast.traits && generatedBeast.traits.map((trait: any, idx: number) => (
+                            <Badge key={idx} variant="outline">
+                              {trait.trait_type}: {trait.value}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
 
-                  {/* Beast Stats */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-background border-2 border-border p-3">
-                      <div className="text-xs text-muted-foreground mb-1 font-mono">ATTACK</div>
-                      <div className="text-xl font-bold text-primary font-mono">
-                        {generatedBeast.attack}
+                      <div className="grid grid-cols-2 gap-4 mb-6">
+                        <div className="bg-background border-2 border-border p-3">
+                          <div className="text-xs text-muted-foreground mb-1 font-mono">ATTACK</div>
+                          <div className="text-xl font-bold text-primary font-mono">
+                            {generatedBeast.attack}
+                          </div>
+                        </div>
+                        <div className="bg-background border-2 border-border p-3">
+                          <div className="text-xs text-muted-foreground mb-1 font-mono">DEFENSE</div>
+                          <div className="text-xl font-bold text-accent font-mono">
+                            {generatedBeast.defense}
+                          </div>
+                        </div>
+                        <div className="bg-background border-2 border-border p-3">
+                          <div className="text-xs text-muted-foreground mb-1 font-mono">SPEED</div>
+                          <div className="text-xl font-bold text-foreground font-mono">
+                            {generatedBeast.speed}
+                          </div>
+                        </div>
+                        <div className="bg-background border-2 border-border p-3">
+                          <div className="text-xs text-muted-foreground mb-1 font-mono">HP</div>
+                          <div className="text-xl font-bold text-primary font-mono">
+                            {generatedBeast.hp}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="bg-background border-2 border-border p-3">
-                      <div className="text-xs text-muted-foreground mb-1 font-mono">DEFENSE</div>
-                      <div className="text-xl font-bold text-accent font-mono">
-                        {generatedBeast.defense}
-                      </div>
-                    </div>
-                    <div className="bg-background border-2 border-border p-3">
-                      <div className="text-xs text-muted-foreground mb-1 font-mono">SPEED</div>
-                      <div className="text-xl font-bold text-foreground font-mono">
-                        {generatedBeast.speed}
-                      </div>
-                    </div>
-                    <div className="bg-background border-2 border-border p-3">
-                      <div className="text-xs text-muted-foreground mb-1 font-mono">HEALTH</div>
-                      <div className="text-xl font-bold text-primary font-mono">
-                        {generatedBeast.health}
-                      </div>
-                    </div>
-                  </div>
 
-                  <div className="mt-6 text-center">
-                    <p className="text-sm text-muted-foreground font-mono">
-                      Beast successfully minted! Check your inventory to view all beasts.
-                    </p>
-                  </div>
+                      <div className="bg-primary/20 border-2 border-primary p-4 mb-6 text-center">
+                        <div className="text-sm text-muted-foreground mb-2 font-mono">PURCHASE PRICE</div>
+                        <div className="text-3xl font-bold text-primary font-mono">1 TON</div>
+                      </div>
+
+                      <div className="flex gap-3">
+                        <Button
+                          onClick={() => {
+                            setGeneratedBeast(null)
+                            setPurchaseComplete(false)
+                          }}
+                          variant="outline"
+                          className="flex-1"
+                          disabled={isPurchasing}
+                        >
+                          REGENERATE
+                        </Button>
+                        <Button
+                          onClick={handlePurchase}
+                          disabled={isPurchasing}
+                          className="flex-1"
+                        >
+                          {isPurchasing ? (
+                            <>
+                              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                              PROCESSING...
+                            </>
+                          ) : (
+                            <>
+                              <Wallet className="w-5 h-5 mr-2" />
+                              BUY BEAST - 1 TON
+                            </>
+                          )}
+                        </Button>
+                      </div>
+
+                      <p className="text-xs text-center text-muted-foreground font-mono mt-4">
+                        Beast will be minted and sent to your wallet after payment
+                      </p>
+                    </>
+                  )}
                 </div>
               )}
             </CardContent>

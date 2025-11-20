@@ -91,21 +91,36 @@ export default function PVPBattlePage() {
     setIsSearching(true)
 
     try {
-      // For demo: Create battle with mock opponent
-      const mockOpponentId = userId === '11111111-1111-1111-1111-111111111111' 
-        ? '22222222-2222-2222-2222-222222222222'
-        : '11111111-1111-1111-1111-111111111111'
+      // Find another user with beasts (matchmaking)
+      // For now, find any other user's beast
+      const { data: allBeasts, error: beastsError } = await supabase
+        .from('beasts')
+        .select('*')\n        .neq('owner_address', address)\n        .limit(10)
 
-      const mockOpponentBeastId = selectedBeast.id === 1 ? 2 : 1
+      if (beastsError || !allBeasts || allBeasts.length === 0) {
+        throw new Error('No opponents available. Please try again later.')
+      }
+
+      // Select random opponent beast
+      const opponentBeast = allBeasts[Math.floor(Math.random() * allBeasts.length)]
+
+      // Get opponent user
+      const { data: opponentUser, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('wallet_address', opponentBeast.owner_address)
+        .single()
+
+      const opponentId = opponentUser?.id || userId // Fallback to self if no user found
 
       const response = await fetch('/api/battles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           player1_id: userId,
-          player2_id: mockOpponentId,
+          player2_id: opponentId,
           beast1_id: selectedBeast.id,
-          beast2_id: mockOpponentBeastId,
+          beast2_id: opponentBeast.id,
           bet_amount: 100
         })
       })
@@ -117,8 +132,9 @@ export default function PVPBattlePage() {
         // Navigate to battle arena
         router.push(`/battle/arena/${data.battle.id}`)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating battle:', error)
+      alert(error.message || 'Failed to find match')
       setIsSearching(false)
     }
   }

@@ -44,7 +44,7 @@ export default function BattlePage() {
           </p>
         </div>
 
-        <Tabs defaultValue="pve" className="w-full">
+        <Tabs defaultValue="pvp" className="w-full">
           <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
             <TabsTrigger value="pve" className="gap-2">
               <Swords className="w-4 h-4" />
