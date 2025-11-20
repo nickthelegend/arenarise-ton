@@ -12,6 +12,7 @@ import { useTonAddress, useTonConnectUI } from '@tonconnect/ui-react'
 import { toNano } from '@ton/core'
 import { PAYMENT_ADDRESS, BEAST_PURCHASE_PRICE } from '@/lib/constants'
 import { useToast } from '@/hooks/use-toast'
+import { convertIpfsUrl } from '@/lib/ipfs'
 
 export default function CreatePage() {
   const router = useRouter()
@@ -205,9 +206,9 @@ export default function CreatePage() {
                     <>
                       <div className="text-center mb-6">
                         {generatedBeast.image_ipfs_uri ? (
-                          <div className="w-32 h-32 mx-auto mb-4 border-4 border-primary bg-muted flex items-center justify-center overflow-hidden">
+                          <div className="w-64 h-64 mx-auto mb-4 border-4 border-primary bg-muted flex items-center justify-center overflow-hidden">
                             <img 
-                              src={generatedBeast.image_ipfs_uri} 
+                              src={convertIpfsUrl(generatedBeast.image_ipfs_uri)} 
                               alt={generatedBeast.name}
                               className="w-full h-full object-cover pixelated"
                             />
