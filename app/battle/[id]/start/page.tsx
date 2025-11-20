@@ -6,7 +6,7 @@ import { Navbar } from '@/components/navbar'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/8bitcn/card'
 import { Button } from '@/components/8bitcn/button'
 import { Badge } from '@/components/8bitcn/badge'
-import { Coins, Swords, ArrowRight, User, Bot, AlertCircle } from 'lucide-react'
+import { Coins, Swords, ArrowRight, User, Bot, AlertCircle, Loader2 } from 'lucide-react'
 import { setStakeData } from '@/lib/stake-storage'
 
 // Mock data
@@ -23,6 +23,7 @@ export default function BattleStartPage() {
   const [stakeAmount, setStakeAmount] = useState(100)
   const [userBalance] = useState(5000)
   const [validationError, setValidationError] = useState<string>('')
+  const [isConfirming, setIsConfirming] = useState(false)
 
   // Real-time validation
   const validateStakeAmount = (amount: number): string => {
@@ -44,29 +45,41 @@ export default function BattleStartPage() {
     setValidationError(error)
   }
 
-  const handleStake = () => {
+  const handleStake = async () => {
     const error = validateStakeAmount(stakeAmount)
     if (error) {
       setValidationError(error)
       return
     }
 
-    // Store stake data in session storage
-    setStakeData({
-      amount: stakeAmount,
-      battleId: params.id as string,
-      timestamp: Date.now()
-    })
+    // Show loading state
+    setIsConfirming(true)
 
-    // Redirect to arena
-    router.push(`/battle/${params.id}/arena`)
+    try {
+      // Store stake data in session storage
+      setStakeData({
+        amount: stakeAmount,
+        battleId: params.id as string,
+        timestamp: Date.now()
+      })
+
+      // Smooth transition delay for better UX
+      await new Promise(resolve => setTimeout(resolve, 800))
+
+      // Redirect to arena with smooth transition
+      router.push(`/battle/${params.id}/arena`)
+    } catch (error) {
+      console.error('Error confirming stake:', error)
+      setValidationError('Failed to confirm stake. Please try again.')
+      setIsConfirming(false)
+    }
   }
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
       
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 animate-in fade-in duration-500">
         <div className="max-w-3xl mx-auto">
           <div className="mb-8 text-center">
             <h1 className="text-3xl md:text-4xl font-bold text-primary mb-3 text-glow uppercase font-mono">
@@ -203,19 +216,40 @@ export default function BattleStartPage() {
               size="lg"
               className="flex-1"
               onClick={() => router.push('/battle')}
+              disabled={isConfirming}
             >
               Cancel
             </Button>
             <Button
               size="lg"
-              className="flex-1"
-              disabled={!!validationError || stakeAmount < MIN_STAKE || stakeAmount > userBalance}
+              className="flex-1 transition-all duration-300"
+              disabled={!!validationError || stakeAmount < MIN_STAKE || stakeAmount > userBalance || isConfirming}
               onClick={handleStake}
             >
-              Stake & Enter Arena
-              <ArrowRight className="w-5 h-5 ml-2" />
+              {isConfirming ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Confirming Stake...
+                </>
+              ) : (
+                <>
+                  Stake & Enter Arena
+                  <ArrowRight className="w-5 h-5 ml-2" />
+                </>
+              )}
             </Button>
           </div>
+          
+          {/* Loading Overlay during confirmation */}
+          {isConfirming && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+              <div className="flex flex-col items-center gap-4 bg-card p-8 rounded-lg border-4 border-primary animate-in zoom-in-95 duration-300">
+                <Loader2 className="w-16 h-16 animate-spin text-primary" />
+                <p className="text-lg font-bold font-mono text-primary">Confirming Stake...</p>
+                <p className="text-sm text-muted-foreground font-mono">Preparing battle arena</p>
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </div>

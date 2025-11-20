@@ -16,14 +16,21 @@ export function OutcomeAnimation({ outcome, onComplete, visible }: OutcomeAnimat
   const router = useRouter();
   const [show, setShow] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     if (visible && !dismissed) {
-      setShow(true);
+      // Small delay for smooth entrance
+      setTimeout(() => {
+        setShow(true);
+        setIsLoaded(true);
+      }, 100);
       
-      // Trigger confetti for victory
+      // Trigger confetti for victory after component is loaded
       if (outcome === 'victory') {
-        triggerVictoryConfetti();
+        setTimeout(() => {
+          triggerVictoryConfetti();
+        }, 200);
       }
 
       // Auto-dismiss after animation duration
@@ -39,8 +46,16 @@ export function OutcomeAnimation({ outcome, onComplete, visible }: OutcomeAnimat
 
   const handleDismiss = () => {
     setDismissed(true);
-    setShow(false);
-    router.push('/battle');
+    setIsLoaded(false);
+    
+    // Smooth fade out before navigation
+    setTimeout(() => {
+      setShow(false);
+      // Additional delay for complete fade out
+      setTimeout(() => {
+        router.push('/battle');
+      }, 150);
+    }, 200);
   };
 
   if (!show || !visible) {
@@ -48,8 +63,8 @@ export function OutcomeAnimation({ outcome, onComplete, visible }: OutcomeAnimat
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="relative flex flex-col items-center justify-center space-y-6 p-8">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm transition-opacity duration-300 animate-in fade-in">
+      <div className="relative flex flex-col items-center justify-center space-y-6 p-8 animate-in zoom-in-95 duration-500">
         {outcome === 'victory' ? (
           <>
             {/* Victory Animation */}

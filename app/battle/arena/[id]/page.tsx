@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { Navbar } from '@/components/navbar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/8bitcn/card'
@@ -12,7 +12,21 @@ import { supabase } from '@/lib/supabase'
 import { Swords, Zap, Shield, Sparkles, Trophy, Loader2, Coins } from 'lucide-react'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { getStakeData, clearStakeData, validateStakeData } from '@/lib/stake-storage'
-import { OutcomeAnimation } from '@/components/battle/outcome-animation'
+import { useIsMobile } from '@/hooks/use-mobile'
+import dynamic from 'next/dynamic'
+
+// Lazy load outcome animation component for better performance
+const OutcomeAnimation = dynamic(
+  () => import('@/components/battle/outcome-animation').then(mod => ({ default: mod.OutcomeAnimation })),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+        <Loader2 className="w-12 h-12 animate-spin text-primary" />
+      </div>
+    )
+  }
+)
 
 interface Beast {
   id: number
@@ -60,6 +74,7 @@ export default function BattleArenaPage() {
   const params = useParams()
   const battleId = params.id as string
   const address = useTonAddress()
+  const isMobile = useIsMobile()
   
   const [userId, setUserId] = useState<string | null>(null)
   const [battle, setBattle] = useState<Battle | null>(null)
@@ -77,6 +92,36 @@ export default function BattleArenaPage() {
   const [stakeAmount, setStakeAmount] = useState<number>(0)
   const [showOutcomeAnimation, setShowOutcomeAnimation] = useState(false)
   const [battleOutcome, setBattleOutcome] = useState<'victory' | 'defeat' | null>(null)
+  const [viewportWidth, setViewportWidth] = useState<number>(0)
+  const [isPageLoading, setIsPageLoading] = useState(true)
+  const [isAnimationLoading, setIsAnimationLoading] = useState(false)
+
+  // Handle viewport changes for dynamic layout adjustment
+  useEffect(() => {
+    // Set initial viewport width
+    setViewportWidth(window.innerWidth)
+    
+    // Listen for viewport changes (including orientation changes)
+    const handleResize = () => {
+      setViewportWidth(window.innerWidth)
+    }
+    
+    // Listen for orientation changes specifically
+    const handleOrientationChange = () => {
+      // Small delay to ensure viewport dimensions are updated
+      setTimeout(() => {
+        setViewportWidth(window.innerWidth)
+      }, 100)
+    }
+    
+    window.addEventListener('resize', handleResize)
+    window.addEventListener('orientationchange', handleOrientationChange)
+    
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('orientationchange', handleOrientationChange)
+    }
+  }, [])
 
   // Validate stake data on mount
   useEffect(() => {
@@ -147,8 +192,12 @@ export default function BattleArenaPage() {
         setBattleMoves(historyData.moves || [])
         setTurnNumber((historyData.moves?.length || 0) + 1)
 
+        // Page loaded successfully
+        setIsPageLoading(false)
+
       } catch (error) {
         console.error('Error fetching battle data:', error)
+        setIsPageLoading(false)
       }
     }
 
@@ -199,12 +248,18 @@ export default function BattleArenaPage() {
             
             // Check if battle is completed and show outcome animation
             if (battleData.battle.status === 'completed' && !showOutcomeAnimation) {
-              const didWin = battleData.battle.winner_id === userId
-              setBattleOutcome(didWin ? 'victory' : 'defeat')
-              setShowOutcomeAnimation(true)
+              setIsAnimationLoading(true)
               
-              // Clear stake data after battle completes
-              clearStakeData()
+              // Small delay for smooth transition
+              setTimeout(() => {
+                const didWin = battleData.battle.winner_id === userId
+                setBattleOutcome(didWin ? 'victory' : 'defeat')
+                setShowOutcomeAnimation(true)
+                setIsAnimationLoading(false)
+                
+                // Clear stake data after battle completes
+                clearStakeData()
+              }, 300)
             }
           }
         }
@@ -218,11 +273,11 @@ export default function BattleArenaPage() {
     }
   }, [battleId, userId])
 
-  const addToBattleLog = (message: string) => {
+  const addToBattleLog = useCallback((message: string) => {
     setBattleLog(prev => [...prev, message])
-  }
+  }, [])
 
-  const handleMove = async (move: Move) => {
+  const handleMove = useCallback(async (move: Move) => {
     if (!battle || !userId || !isMyTurn || isExecutingMove) return
 
     setIsExecutingMove(true)
@@ -267,12 +322,18 @@ export default function BattleArenaPage() {
           `${myBeast?.name} wins! ${opponentBeast?.name} has been defeated!`
         )
         
-        // Show victory animation
-        setBattleOutcome('victory')
-        setShowOutcomeAnimation(true)
+        // Show loading state before animation
+        setIsAnimationLoading(true)
         
-        // Clear stake data
-        clearStakeData()
+        // Small delay for smooth transition
+        setTimeout(() => {
+          setBattleOutcome('victory')
+          setShowOutcomeAnimation(true)
+          setIsAnimationLoading(false)
+          
+          // Clear stake data
+          clearStakeData()
+        }, 300)
       } else {
         setIsMyTurn(false)
         addToBattleLog("Opponent's turn...")
@@ -284,24 +345,28 @@ export default function BattleArenaPage() {
     } finally {
       setIsExecutingMove(false)
     }
-  }
+  }, [battle, userId, isMyTurn, isExecutingMove, myBeast, opponentBeast, opponentBeastHp, battleId, turnNumber, addToBattleLog])
 
-  if (!battle || !myBeast || !opponentBeast) {
+  if (isPageLoading || !battle || !myBeast || !opponentBeast) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-primary" />
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 animate-in fade-in duration-500">
+        <div className="flex flex-col items-center gap-4 bg-card p-8 rounded-lg border-4 border-primary animate-pulse">
+          <Loader2 className="w-16 h-16 animate-spin text-primary" />
+          <p className="text-lg font-bold font-mono text-primary">Loading Battle Arena...</p>
+          <p className="text-sm text-muted-foreground font-mono">Preparing combatants</p>
+        </div>
       </div>
     )
   }
 
-  const isCompleted = battle.status === 'completed'
-  const didIWin = battle.winner_id === userId
+  const isCompleted = useMemo(() => battle.status === 'completed', [battle.status])
+  const didIWin = useMemo(() => battle.winner_id === userId, [battle.winner_id, userId])
 
   return (
     <div className="min-h-screen">
       <Navbar />
       
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 animate-in fade-in duration-700">
         {/* Battle Header */}
         <div className="text-center mb-6">
           <h1 className="text-3xl md:text-4xl font-bold text-primary mb-2 text-glow">
@@ -395,7 +460,7 @@ export default function BattleArenaPage() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-                {moves.slice(0, 6).map((move) => (
+                {useMemo(() => moves.slice(0, 6).map((move) => (
                   <Button
                     key={move.id}
                     variant="outline"
@@ -410,7 +475,7 @@ export default function BattleArenaPage() {
                       {move.damage > 0 ? `${move.damage} DMG` : 'HEAL'}
                     </div>
                   </Button>
-                ))}
+                )), [moves, handleMove, isExecutingMove])}
               </div>
             </CardContent>
           </Card>
@@ -437,6 +502,17 @@ export default function BattleArenaPage() {
           </CardContent>
         </Card>
       </main>
+      
+      {/* Animation Loading State */}
+      {isAnimationLoading && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="flex flex-col items-center gap-4 bg-card p-8 rounded-lg border-4 border-primary animate-in zoom-in-95 duration-300">
+            <Loader2 className="w-16 h-16 animate-spin text-primary" />
+            <p className="text-lg font-bold font-mono text-primary">Battle Complete!</p>
+            <p className="text-sm text-muted-foreground font-mono">Preparing results...</p>
+          </div>
+        </div>
+      )}
       
       {/* Outcome Animation */}
       {battleOutcome && (
