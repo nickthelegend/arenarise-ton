@@ -23,35 +23,31 @@ export function Navbar() {
 
           {/* Navigation Links - Hidden on mobile, shown on md+ */}
           <div className="hidden md:flex items-center gap-6">
-            <Link 
-              href="/" 
-              className={`font-bold font-mono transition-colors ${
-                pathname === '/' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-              }`}
+            <Link
+              href="/"
+              className={`font-bold font-mono transition-colors ${pathname === '/' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                }`}
             >
               HOME
             </Link>
-            <Link 
-              href="/create" 
-              className={`font-bold font-mono transition-colors ${
-                pathname === '/create' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-              }`}
+            <Link
+              href="/create"
+              className={`font-bold font-mono transition-colors ${pathname === '/create' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                }`}
             >
               CREATE
             </Link>
-            <Link 
-              href="/battle" 
-              className={`font-bold font-mono transition-colors ${
-                pathname === '/battle' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-              }`}
+            <Link
+              href="/battle"
+              className={`font-bold font-mono transition-colors ${pathname === '/battle' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                }`}
             >
               BATTLE
             </Link>
-            <Link 
-              href="/inventory" 
-              className={`font-bold font-mono transition-colors ${
-                pathname === '/inventory' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-              }`}
+            <Link
+              href="/inventory"
+              className={`font-bold font-mono transition-colors ${pathname === '/inventory' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                }`}
             >
               INVENTORY
             </Link>
@@ -67,7 +63,7 @@ export function Navbar() {
             {/* $RISE Token Display - Only show when connected */}
             {address && (
               <>
-                <div className="hidden sm:flex items-center gap-1.5 md:gap-3 bg-muted px-2 py-1 md:px-4 md:py-2 border-2 border-primary">
+                <div className="hidden lg:flex items-center gap-1.5 md:gap-3 bg-muted px-2 py-1 md:px-4 md:py-2 border-2 border-primary">
                   <Coins className="w-3.5 h-3.5 md:w-5 md:h-5 text-accent" />
                   <div className="flex flex-col">
                     <span className="text-[10px] md:text-xs text-muted-foreground font-mono">$RISE</span>
@@ -75,9 +71,9 @@ export function Navbar() {
                   </div>
                   <Wallet className="w-3.5 h-3.5 md:w-5 md:h-5 text-primary" />
                 </div>
-                <Link 
+                <Link
                   href="/swap"
-                  className="hidden sm:flex items-center justify-center w-8 h-8 md:w-10 md:h-10 bg-accent hover:bg-accent/90 border-2 border-accent transition-colors"
+                  className="hidden lg:flex items-center justify-center w-8 h-8 md:w-10 md:h-10 bg-accent hover:bg-accent/90 border-2 border-accent transition-colors"
                   title="Buy/Sell $RISE"
                 >
                   <Plus className="w-4 h-4 md:w-5 md:h-5 text-accent-foreground" />
@@ -89,43 +85,39 @@ export function Navbar() {
 
         {/* Mobile Navigation - Shown on mobile only */}
         <div className="flex md:hidden items-center justify-around pb-3 gap-2">
-          <Link 
-            href="/" 
-            className={`flex-1 text-center py-2 font-bold font-mono text-xs transition-colors border-2 ${
-              pathname === '/' 
-                ? 'bg-primary text-primary-foreground border-primary' 
+          <Link
+            href="/"
+            className={`flex-1 text-center py-2 font-bold font-mono text-xs transition-colors border-2 ${pathname === '/'
+                ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-card text-muted-foreground border-border hover:border-primary'
-            }`}
+              }`}
           >
             HOME
           </Link>
-          <Link 
-            href="/create" 
-            className={`flex-1 text-center py-2 font-bold font-mono text-xs transition-colors border-2 ${
-              pathname === '/create' 
-                ? 'bg-primary text-primary-foreground border-primary' 
+          <Link
+            href="/create"
+            className={`flex-1 text-center py-2 font-bold font-mono text-xs transition-colors border-2 ${pathname === '/create'
+                ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-card text-muted-foreground border-border hover:border-primary'
-            }`}
+              }`}
           >
             CREATE
           </Link>
-          <Link 
-            href="/battle" 
-            className={`flex-1 text-center py-2 font-bold font-mono text-xs transition-colors border-2 ${
-              pathname === '/battle' 
-                ? 'bg-primary text-primary-foreground border-primary' 
+          <Link
+            href="/battle"
+            className={`flex-1 text-center py-2 font-bold font-mono text-xs transition-colors border-2 ${pathname === '/battle'
+                ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-card text-muted-foreground border-border hover:border-primary'
-            }`}
+              }`}
           >
             BATTLE
           </Link>
-          <Link 
-            href="/inventory" 
-            className={`flex-1 text-center py-2 font-bold font-mono text-xs transition-colors border-2 ${
-              pathname === '/inventory' 
-                ? 'bg-primary text-primary-foreground border-primary' 
+          <Link
+            href="/inventory"
+            className={`flex-1 text-center py-2 font-bold font-mono text-xs transition-colors border-2 ${pathname === '/inventory'
+                ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-card text-muted-foreground border-border hover:border-primary'
-            }`}
+              }`}
           >
             INVENTORY
           </Link>
