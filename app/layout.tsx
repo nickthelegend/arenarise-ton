@@ -46,7 +46,7 @@ export default function RootLayout({
         <meta name="description" content="Create beasts, battle in the arena, and earn $RISE tokens" />
         <script src="https://telegram.org/js/telegram-web-app.js" async />
       </head>
-      <body className={`${pressStart.variable} ${vt323.variable} font-sans antialiased`}>
+      <body className={`${pressStart.variable} ${vt323.variable} font-mono antialiased`}>
         <TonConnectUIProvider
           manifestUrl={manifestUrl}
           actionsConfiguration={{

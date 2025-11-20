@@ -16,7 +16,7 @@ export function Navbar() {
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <div className="text-2xl font-bold text-primary text-glow">
+            <div className="text-2xl font-bold text-primary text-glow font-mono">
               ARENA<span className="text-accent">RISE</span>
             </div>
           </Link>
@@ -25,7 +25,7 @@ export function Navbar() {
           <div className="hidden md:flex items-center gap-6">
             <Link 
               href="/" 
-              className={`font-bold transition-colors ${
+              className={`font-bold font-mono transition-colors ${
                 pathname === '/' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -33,7 +33,7 @@ export function Navbar() {
             </Link>
             <Link 
               href="/create" 
-              className={`font-bold transition-colors ${
+              className={`font-bold font-mono transition-colors ${
                 pathname === '/create' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -41,7 +41,7 @@ export function Navbar() {
             </Link>
             <Link 
               href="/battle" 
-              className={`font-bold transition-colors ${
+              className={`font-bold font-mono transition-colors ${
                 pathname === '/battle' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -49,7 +49,7 @@ export function Navbar() {
             </Link>
             <Link 
               href="/inventory" 
-              className={`font-bold transition-colors ${
+              className={`font-bold font-mono transition-colors ${
                 pathname === '/inventory' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -91,7 +91,7 @@ export function Navbar() {
         <div className="flex md:hidden items-center justify-around pb-3 gap-2">
           <Link 
             href="/" 
-            className={`flex-1 text-center py-2 font-bold text-xs transition-colors border-2 ${
+            className={`flex-1 text-center py-2 font-bold font-mono text-xs transition-colors border-2 ${
               pathname === '/' 
                 ? 'bg-primary text-primary-foreground border-primary' 
                 : 'bg-card text-muted-foreground border-border hover:border-primary'
@@ -101,7 +101,7 @@ export function Navbar() {
           </Link>
           <Link 
             href="/create" 
-            className={`flex-1 text-center py-2 font-bold text-xs transition-colors border-2 ${
+            className={`flex-1 text-center py-2 font-bold font-mono text-xs transition-colors border-2 ${
               pathname === '/create' 
                 ? 'bg-primary text-primary-foreground border-primary' 
                 : 'bg-card text-muted-foreground border-border hover:border-primary'
@@ -111,7 +111,7 @@ export function Navbar() {
           </Link>
           <Link 
             href="/battle" 
-            className={`flex-1 text-center py-2 font-bold text-xs transition-colors border-2 ${
+            className={`flex-1 text-center py-2 font-bold font-mono text-xs transition-colors border-2 ${
               pathname === '/battle' 
                 ? 'bg-primary text-primary-foreground border-primary' 
                 : 'bg-card text-muted-foreground border-border hover:border-primary'
@@ -121,7 +121,7 @@ export function Navbar() {
           </Link>
           <Link 
             href="/inventory" 
-            className={`flex-1 text-center py-2 font-bold text-xs transition-colors border-2 ${
+            className={`flex-1 text-center py-2 font-bold font-mono text-xs transition-colors border-2 ${
               pathname === '/inventory' 
                 ? 'bg-primary text-primary-foreground border-primary' 
                 : 'bg-card text-muted-foreground border-border hover:border-primary'

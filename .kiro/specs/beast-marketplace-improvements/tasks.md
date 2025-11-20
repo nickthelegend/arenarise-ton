@@ -1,6 +1,7 @@
 # Implementation Plan
 
-- [-] 1. Restore retro 8-bit font styling
+- [ ] 1. Restore retro 8-bit font styling
+
 
 
 
@@ -10,9 +11,12 @@
   - Test font rendering across different browsers
   - _Requirements: 1.1, 1.2, 1.3_
 
-- [ ] 2. Implement beast-moves database relationship
+- [-] 2. Implement beast-moves database relationship
 
-  - [ ] 2.1 Create beast_moves junction table migration
+
+
+  - [-] 2.1 Create beast_moves junction table migration
+
 
     - Add SQL migration for beast_moves table with beast_id, move_id, and slot columns
     - Add foreign key constraints to beasts and moves tables
