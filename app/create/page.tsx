@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/8bitcn/ca
 import { Badge } from '@/components/8bitcn/badge'
 import { useTonAddress, useTonConnectUI } from '@tonconnect/ui-react'
 import { Address, toNano } from '@ton/core'
+import { PAYMENT_ADDRESS, BEAST_PURCHASE_PRICE } from '@/lib/constants'
 
 export default function CreatePage() {
   const router = useRouter()
@@ -73,8 +74,8 @@ export default function CreatePage() {
         validUntil: Math.floor(Date.now() / 1000) + 360,
         messages: [
           {
-            address: '0QD77r9HUu7VXdz-l_pgzfDgJWdHKNgk45oza4QZ7Z1CyqUX',
-            amount: toNano('1').toString(),
+            address: PAYMENT_ADDRESS,
+            amount: toNano(BEAST_PURCHASE_PRICE).toString(),
           }
         ]
       }
@@ -241,7 +242,7 @@ export default function CreatePage() {
 
                       <div className="bg-primary/20 border-2 border-primary p-4 mb-6 text-center">
                         <div className="text-sm text-muted-foreground mb-2 font-mono">PURCHASE PRICE</div>
-                        <div className="text-3xl font-bold text-primary font-mono">1 TON</div>
+                        <div className="text-3xl font-bold text-primary font-mono">{BEAST_PURCHASE_PRICE} TON</div>
                       </div>
 
                       <div className="flex gap-3">
@@ -269,7 +270,7 @@ export default function CreatePage() {
                           ) : (
                             <>
                               <Wallet className="w-5 h-5 mr-2" />
-                              BUY BEAST - 1 TON
+                              BUY BEAST - {BEAST_PURCHASE_PRICE} TON
                             </>
                           )}
                         </Button>

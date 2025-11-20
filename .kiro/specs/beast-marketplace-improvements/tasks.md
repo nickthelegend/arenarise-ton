@@ -55,9 +55,16 @@
     - **Validates: Requirements 3.1, 3.2**
 -
 
-- [ ] 3. Update beast creation API to assign moves
+- [x] 3. Update beast creation API to assign moves
 
-  - [-] 3.1 Modify `/api/create/beast` to call move assignment
+
+
+  - [x] 3.1 Modify `/api/create/beast` to call move assignment
+
+
+
+
+
 
 
     - After beast insertion, call move assignment logic
@@ -73,17 +80,29 @@
     - **Property 3: Combat stats extraction**
     - **Validates: Requirements 2.5**
 
-- [ ] 4. Implement beast purchase flow
+
+
+
+
+
+- [x] 4. Implement beast purchase flow
+
+
 
   - [ ] 4.1 Update purchase API to verify payment
 
     - Modify `/api/purchase/beast` to accept payment verification
     - Call backend `/api/send` with correct parameters
     - Update beast ownership in database
+
+
     - Handle transfer failures appropriately
     - _Requirements: 5.3, 5.4, 5.5_
 
-  - [ ] 4.2 Update create page purchase handler
+  - [x] 4.2 Update create page purchase handler
+
+
+
 
     - Ensure payment amount is exactly 1 TON using toNano('1')
     - Verify payment address matches specification
@@ -99,6 +118,7 @@
   - [ ]* 4.4 Write property test for ownership transfer
     - **Property 8: Ownership transfer**
     - **Validates: Requirements 5.5**
+-
 
 - [ ] 5. Set PVP as default battle mode
 
