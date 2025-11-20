@@ -225,8 +225,8 @@ export default function BattlePage() {
     <div className="min-h-screen bg-background">
       <Navbar />
       
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8 text-center">
+      <main className="container mx-auto px-4 py-8 animate-in fade-in duration-700">
+        <div className="mb-8 text-center animate-in slide-in-from-top duration-500">
           <h1 className="text-4xl md:text-5xl font-bold text-primary mb-3 text-glow uppercase font-mono">
             <Swords className="inline-block w-10 h-10 mr-3" />
             Battle Arena

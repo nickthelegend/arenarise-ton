@@ -52,7 +52,7 @@ export default function BattleStartPage() {
       return
     }
 
-    // Show loading state
+    // Show loading state with smooth transition
     setIsConfirming(true)
 
     try {
@@ -63,8 +63,8 @@ export default function BattleStartPage() {
         timestamp: Date.now()
       })
 
-      // Smooth transition delay for better UX
-      await new Promise(resolve => setTimeout(resolve, 800))
+      // Smooth transition delay for better UX (allows loading animation to display)
+      await new Promise(resolve => setTimeout(resolve, 1000))
 
       // Redirect to arena with smooth transition
       router.push(`/battle/${params.id}/arena`)
@@ -92,7 +92,7 @@ export default function BattleStartPage() {
           </div>
 
           {/* Battle Preview */}
-          <Card className="mb-6">
+          <Card className="mb-6 animate-in slide-in-from-top duration-700">
             <CardHeader>
               <CardTitle className="text-xl">Battle Preview</CardTitle>
               <CardDescription>View combatants before staking</CardDescription>
@@ -135,7 +135,7 @@ export default function BattleStartPage() {
           </Card>
 
           {/* Staking Card */}
-          <Card className="mb-6">
+          <Card className="mb-6 animate-in slide-in-from-bottom duration-700">
             <CardHeader>
               <CardTitle className="text-xl flex items-center gap-2">
                 <Coins className="w-6 h-6" />
@@ -242,11 +242,16 @@ export default function BattleStartPage() {
           
           {/* Loading Overlay during confirmation */}
           {isConfirming && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-              <div className="flex flex-col items-center gap-4 bg-card p-8 rounded-lg border-4 border-primary animate-in zoom-in-95 duration-300">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-500">
+              <div className="flex flex-col items-center gap-4 bg-card p-8 rounded-lg border-4 border-primary animate-in zoom-in-95 duration-500">
                 <Loader2 className="w-16 h-16 animate-spin text-primary" />
-                <p className="text-lg font-bold font-mono text-primary">Confirming Stake...</p>
+                <p className="text-lg font-bold font-mono text-primary animate-pulse">Confirming Stake...</p>
                 <p className="text-sm text-muted-foreground font-mono">Preparing battle arena</p>
+                <div className="flex gap-2 mt-2">
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                </div>
               </div>
             </div>
           )}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, memo } from 'react';
 import { Trophy, ShieldX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { triggerVictoryConfetti } from '@/lib/confetti';
@@ -12,59 +12,76 @@ interface OutcomeAnimationProps {
   visible: boolean;
 }
 
-export function OutcomeAnimation({ outcome, onComplete, visible }: OutcomeAnimationProps) {
+// Memoize component to prevent unnecessary re-renders
+const OutcomeAnimationComponent = ({ outcome, onComplete, visible }: OutcomeAnimationProps) => {
   const router = useRouter();
   const [show, setShow] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   useEffect(() => {
     if (visible && !dismissed) {
-      // Small delay for smooth entrance
-      setTimeout(() => {
+      // Smooth entrance with loading state
+      setIsTransitioning(true);
+      
+      const showTimeout = setTimeout(() => {
         setShow(true);
         setIsLoaded(true);
-      }, 100);
+        setIsTransitioning(false);
+      }, 150);
       
       // Trigger confetti for victory after component is loaded
+      // Use requestAnimationFrame for better performance
       if (outcome === 'victory') {
-        setTimeout(() => {
-          triggerVictoryConfetti();
-        }, 200);
+        const confettiTimeout = setTimeout(() => {
+          requestAnimationFrame(() => {
+            triggerVictoryConfetti();
+          });
+        }, 300);
+        
+        return () => {
+          clearTimeout(showTimeout);
+          clearTimeout(confettiTimeout);
+        };
       }
 
       // Auto-dismiss after animation duration
-      const timeout = setTimeout(() => {
+      const dismissTimeout = setTimeout(() => {
         if (onComplete) {
           onComplete();
         }
       }, outcome === 'victory' ? 5000 : 3000);
 
-      return () => clearTimeout(timeout);
+      return () => {
+        clearTimeout(showTimeout);
+        clearTimeout(dismissTimeout);
+      };
     }
   }, [visible, outcome, onComplete, dismissed]);
 
-  const handleDismiss = () => {
+  const handleDismiss = useCallback(() => {
     setDismissed(true);
     setIsLoaded(false);
+    setIsTransitioning(true);
     
-    // Smooth fade out before navigation
+    // Smooth fade out before navigation with transition
     setTimeout(() => {
       setShow(false);
-      // Additional delay for complete fade out
+      // Additional delay for complete fade out and smooth page transition
       setTimeout(() => {
         router.push('/battle');
-      }, 150);
-    }, 200);
-  };
+      }, 200);
+    }, 150);
+  }, [router]);
 
   if (!show || !visible) {
     return null;
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm transition-opacity duration-300 animate-in fade-in">
-      <div className="relative flex flex-col items-center justify-center space-y-6 p-8 animate-in zoom-in-95 duration-500">
+    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm transition-all duration-500 ${dismissed || isTransitioning ? 'animate-out fade-out duration-300' : 'animate-in fade-in duration-500'}`}>
+      <div className={`relative flex flex-col items-center justify-center space-y-6 p-8 transition-all duration-500 ${dismissed || isTransitioning ? 'animate-out zoom-out-95 duration-300' : 'animate-in zoom-in-95 duration-500'}`}>
         {outcome === 'victory' ? (
           <>
             {/* Victory Animation */}
@@ -118,4 +135,7 @@ export function OutcomeAnimation({ outcome, onComplete, visible }: OutcomeAnimat
       </div>
     </div>
   );
-}
+};
+
+// Export memoized component for better performance
+export const OutcomeAnimation = memo(OutcomeAnimationComponent);

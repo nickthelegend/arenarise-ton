@@ -16,6 +16,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import dynamic from 'next/dynamic'
 
 // Lazy load outcome animation component for better performance
+// Only load when needed to reduce initial bundle size
 const OutcomeAnimation = dynamic(
   () => import('@/components/battle/outcome-animation').then(mod => ({ default: mod.OutcomeAnimation })),
   { 
@@ -95,6 +96,7 @@ export default function BattleArenaPage() {
   const [viewportWidth, setViewportWidth] = useState<number>(0)
   const [isPageLoading, setIsPageLoading] = useState(true)
   const [isAnimationLoading, setIsAnimationLoading] = useState(false)
+  const [isPageTransitioning, setIsPageTransitioning] = useState(false)
 
   // Handle viewport changes for dynamic layout adjustment
   useEffect(() => {
@@ -349,11 +351,16 @@ export default function BattleArenaPage() {
 
   if (isPageLoading || !battle || !myBeast || !opponentBeast) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 animate-in fade-in duration-500">
-        <div className="flex flex-col items-center gap-4 bg-card p-8 rounded-lg border-4 border-primary animate-pulse">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 animate-in fade-in duration-700">
+        <div className="flex flex-col items-center gap-4 bg-card p-8 rounded-lg border-4 border-primary animate-in zoom-in-95 duration-500">
           <Loader2 className="w-16 h-16 animate-spin text-primary" />
-          <p className="text-lg font-bold font-mono text-primary">Loading Battle Arena...</p>
+          <p className="text-lg font-bold font-mono text-primary animate-pulse">Loading Battle Arena...</p>
           <p className="text-sm text-muted-foreground font-mono">Preparing combatants</p>
+          <div className="flex gap-2 mt-4">
+            <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+            <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+            <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+          </div>
         </div>
       </div>
     )
@@ -368,23 +375,23 @@ export default function BattleArenaPage() {
       
       <main className="container mx-auto px-4 py-8 animate-in fade-in duration-700">
         {/* Battle Header */}
-        <div className="text-center mb-6">
+        <div className="text-center mb-6 animate-in slide-in-from-top duration-500">
           <h1 className="text-3xl md:text-4xl font-bold text-primary mb-2 text-glow">
             BATTLE ARENA
           </h1>
           <div className="flex flex-col items-center gap-2">
             {isCompleted ? (
-              <Badge variant={didIWin ? 'default' : 'destructive'} className="text-lg px-4 py-2">
+              <Badge variant={didIWin ? 'default' : 'destructive'} className="text-lg px-4 py-2 animate-in zoom-in duration-300">
                 <Trophy className="w-5 h-5 mr-2" />
                 {didIWin ? 'VICTORY!' : 'DEFEAT'}
               </Badge>
             ) : (
-              <Badge variant={isMyTurn ? 'default' : 'secondary'} className="text-lg px-4 py-2">
+              <Badge variant={isMyTurn ? 'default' : 'secondary'} className="text-lg px-4 py-2 transition-all duration-300">
                 {isMyTurn ? 'YOUR TURN' : "OPPONENT'S TURN"}
               </Badge>
             )}
             {stakeAmount > 0 && (
-              <Badge variant="outline" className="text-md px-3 py-1">
+              <Badge variant="outline" className="text-md px-3 py-1 animate-in slide-in-from-top duration-700">
                 <Coins className="w-4 h-4 mr-2" />
                 Stake: {stakeAmount} $RISE
               </Badge>
@@ -395,7 +402,7 @@ export default function BattleArenaPage() {
         {/* Battle Arena */}
         <div className="grid md:grid-cols-2 gap-6 mb-6">
           {/* My Beast */}
-          <Card className="border-primary">
+          <Card className="border-primary animate-in slide-in-from-left duration-700">
             <CardHeader>
               <div className="flex justify-between items-start">
                 <div>
@@ -422,7 +429,7 @@ export default function BattleArenaPage() {
           </Card>
 
           {/* Opponent Beast */}
-          <Card className="border-destructive">
+          <Card className="border-destructive animate-in slide-in-from-right duration-700">
             <CardHeader>
               <div className="flex justify-between items-start">
                 <div>
@@ -451,7 +458,7 @@ export default function BattleArenaPage() {
 
         {/* Moves Selection */}
         {!isCompleted && isMyTurn && (
-          <Card className="mb-6">
+          <Card className="mb-6 animate-in slide-in-from-bottom duration-500">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5" />
@@ -464,7 +471,7 @@ export default function BattleArenaPage() {
                   <Button
                     key={move.id}
                     variant="outline"
-                    className="h-auto flex-col items-start p-3 sm:p-4 min-h-[88px] sm:min-h-[120px] min-w-full touch-manipulation"
+                    className="h-auto flex-col items-start p-3 sm:p-4 min-h-[88px] sm:min-h-[120px] min-w-full touch-manipulation transition-all duration-200 hover:scale-105 active:scale-95"
                     onClick={() => handleMove(move)}
                     disabled={isExecutingMove}
                   >
@@ -482,7 +489,7 @@ export default function BattleArenaPage() {
         )}
 
         {/* Battle Log */}
-        <Card>
+        <Card className="animate-in slide-in-from-bottom duration-700">
           <CardHeader>
             <CardTitle>Battle Log</CardTitle>
           </CardHeader>
@@ -505,11 +512,16 @@ export default function BattleArenaPage() {
       
       {/* Animation Loading State */}
       {isAnimationLoading && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="flex flex-col items-center gap-4 bg-card p-8 rounded-lg border-4 border-primary animate-in zoom-in-95 duration-300">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-md animate-in fade-in duration-500">
+          <div className="flex flex-col items-center gap-4 bg-card p-8 rounded-lg border-4 border-primary animate-in zoom-in-95 duration-500">
             <Loader2 className="w-16 h-16 animate-spin text-primary" />
-            <p className="text-lg font-bold font-mono text-primary">Battle Complete!</p>
+            <p className="text-lg font-bold font-mono text-primary animate-pulse">Battle Complete!</p>
             <p className="text-sm text-muted-foreground font-mono">Preparing results...</p>
+            <div className="flex gap-2 mt-2">
+              <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+              <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+              <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+            </div>
           </div>
         </div>
       )}

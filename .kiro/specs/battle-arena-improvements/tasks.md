@@ -188,7 +188,12 @@
     - _Requirements: All_
 
 
-  - [-] 5.2 Add loading states and transitions
+  - [x] 5.2 Add loading states and transitions
+
+
+
+
+
 
 
 
@@ -198,7 +203,10 @@
     - Add animation loading states
     - _Requirements: 1.4, 2.1, 2.3_
 
+
   - [x] 5.3 Optimize performance
+
+
 
 
 
