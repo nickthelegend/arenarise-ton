@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Navbar } from '@/components/navbar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/8bitcn/card'
 import { Button } from '@/components/8bitcn/button'
@@ -44,6 +44,7 @@ interface Battle {
 
 export default function PVPBattlePage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const address = useTonAddress()
   
   const [userId, setUserId] = useState<string | null>(null)
@@ -72,10 +73,20 @@ export default function PVPBattlePage() {
         if (userData.user) {
           setUserId(userData.user.id)
           
-          // Get user's beasts
-          const beastsRes = await fetch(`/api/beasts?owner_address=${address}`)
+          // Get user's beasts - use wallet_address parameter
+          const beastsRes = await fetch(`/api/beasts?wallet_address=${address}`)
           const beastsData = await beastsRes.json()
-          setMyBeasts(beastsData.beasts || [])
+          const beasts = beastsData.beasts || []
+          setMyBeasts(beasts)
+          
+          // Pre-select beast from URL parameter if provided
+          const beastIdParam = searchParams.get('beastId')
+          if (beastIdParam && beasts.length > 0) {
+            const preSelectedBeast = beasts.find((b: Beast) => b.id === parseInt(beastIdParam))
+            if (preSelectedBeast) {
+              setSelectedBeast(preSelectedBeast)
+            }
+          }
         }
       } catch (error) {
         console.error('Error fetching user data:', error)
@@ -83,7 +94,7 @@ export default function PVPBattlePage() {
     }
 
     fetchUserData()
-  }, [address])
+  }, [address, searchParams])
 
   const handleFindMatch = async () => {
     if (!selectedBeast || !userId) return
