@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
-// Get or create user by wallet address
+// Create or verify user record on wallet connection
 export async function POST(request: NextRequest) {
   try {
-    const { wallet_address } = await request.json()
+    const body = await request.json()
+    const { wallet_address } = body
 
     if (!wallet_address) {
       return NextResponse.json(
@@ -13,68 +14,53 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if user exists
+    // Check if user already exists
     const { data: existingUser, error: fetchError } = await supabase
       .from('users')
       .select('*')
       .eq('wallet_address', wallet_address)
       .single()
 
-    if (existingUser) {
-      return NextResponse.json({ user: existingUser })
-    }
-
-    // Create new user
-    const { data: newUser, error: createError } = await supabase
-      .from('users')
-      .insert({ wallet_address })
-      .select()
-      .single()
-
-    if (createError) {
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      // PGRST116 is "not found" error, which is expected for new users
+      console.error('Error checking for existing user:', fetchError)
       return NextResponse.json(
-        { error: createError.message },
+        { error: fetchError.message },
         { status: 500 }
       )
     }
 
-    return NextResponse.json({ user: newUser }, { status: 201 })
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || 'Internal server error' },
-      { status: 500 }
-    )
-  }
-}
-
-// Get user by ID
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url)
-    const wallet_address = searchParams.get('wallet_address')
-
-    if (!wallet_address) {
-      return NextResponse.json(
-        { error: 'Wallet address is required' },
-        { status: 400 }
-      )
+    // If user exists, return existing user
+    if (existingUser) {
+      return NextResponse.json({
+        success: true,
+        user: existingUser,
+        isNew: false
+      })
     }
 
-    const { data: user, error } = await supabase
+    // Create new user
+    const { data: newUser, error: insertError } = await supabase
       .from('users')
-      .select('*')
-      .eq('wallet_address', wallet_address)
+      .insert([{ wallet_address }])
+      .select()
       .single()
 
-    if (error) {
+    if (insertError) {
+      console.error('Error creating user:', insertError)
       return NextResponse.json(
-        { error: error.message },
-        { status: 404 }
+        { error: insertError.message },
+        { status: 500 }
       )
     }
 
-    return NextResponse.json({ user })
+    return NextResponse.json({
+      success: true,
+      user: newUser,
+      isNew: true
+    })
   } catch (error: any) {
+    console.error('Unexpected error in user registration:', error)
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }

@@ -3,62 +3,26 @@
 import { Navbar } from '@/components/navbar'
 import { Package, Swords, Zap, Heart, ArrowLeft, Trash2 } from 'lucide-react'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/8bitcn/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/8bitcn/card'
 import { Badge } from '@/components/8bitcn/badge'
+import { useTonAddress } from '@tonconnect/ui-react'
 
-// Mock data
-const MOCK_BEASTS = [
-  {
-    id: 1,
-    name: 'Inferno Dragon',
-    type: 'Dragon',
-    element: 'Fire',
-    rarity: 'Legendary',
-    level: 15,
-    hp: 850,
-    attack: 120,
-    defense: 95,
-    speed: 88,
-  },
-  {
-    id: 2,
-    name: 'Storm Phoenix',
-    type: 'Phoenix',
-    element: 'Lightning',
-    rarity: 'Epic',
-    level: 12,
-    hp: 720,
-    attack: 105,
-    defense: 80,
-    speed: 115,
-  },
-  {
-    id: 3,
-    name: 'Shadow Hydra',
-    type: 'Hydra',
-    element: 'Shadow',
-    rarity: 'Rare',
-    level: 8,
-    hp: 680,
-    attack: 90,
-    defense: 110,
-    speed: 65,
-  },
-  {
-    id: 4,
-    name: 'Terra Griffon',
-    type: 'Griffon',
-    element: 'Earth',
-    rarity: 'Epic',
-    level: 10,
-    hp: 700,
-    attack: 95,
-    defense: 100,
-    speed: 92,
-  },
-]
+interface Beast {
+  id: number
+  name: string
+  hp: number
+  max_hp: number
+  attack: number
+  defense: number
+  speed: number
+  level: number
+  traits: {
+    trait_type: string
+    value: string
+  }[]
+}
 
 const RARITY_COLORS = {
   Common: 'text-muted-foreground',
@@ -68,8 +32,42 @@ const RARITY_COLORS = {
 }
 
 export default function InventoryPage() {
-  const [beasts] = useState(MOCK_BEASTS)
-  const [selectedBeast, setSelectedBeast] = useState<typeof MOCK_BEASTS[0] | null>(null)
+  const address = useTonAddress()
+  const [beasts, setBeasts] = useState<Beast[]>([])
+  const [selectedBeast, setSelectedBeast] = useState<Beast | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function fetchBeasts() {
+      if (!address) {
+        setBeasts([])
+        setIsLoading(false)
+        return
+      }
+
+      try {
+        setIsLoading(true)
+        setError(null)
+        const response = await fetch(`/api/beasts?wallet_address=${address}`)
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch beasts')
+        }
+
+        const data = await response.json()
+        setBeasts(data.beasts || [])
+      } catch (err) {
+        console.error('Error fetching beasts:', err)
+        setError('Failed to load your beasts. Please try again.')
+        setBeasts([])
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchBeasts()
+  }, [address])
 
   return (
     <div className="min-h-screen">
@@ -104,52 +102,73 @@ export default function InventoryPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  {beasts.map(beast => (
-                    <div
-                      key={beast.id}
-                      onClick={() => setSelectedBeast(beast)}
-                      className={`bg-muted border-2 p-4 cursor-pointer transition-all hover:border-primary ${
-                        selectedBeast?.id === beast.id ? 'border-primary' : 'border-border'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <h3 className="font-bold text-foreground mb-1">{beast.name}</h3>
-                          <div className="text-xs text-muted-foreground font-mono">{beast.type}</div>
-                        </div>
-                        <div className="text-2xl">🐉</div>
-                      </div>
-
-                      <div className="flex items-center gap-2 mb-3 flex-wrap">
-                        <Badge variant="outline">{beast.element}</Badge>
-                        <Badge className={RARITY_COLORS[beast.rarity as keyof typeof RARITY_COLORS]}>
-                          {beast.rarity}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground ml-auto">LVL {beast.level}</span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="flex items-center gap-1">
-                          <Heart className="w-3 h-3 text-destructive" />
-                          <span className="text-muted-foreground">{beast.hp}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Swords className="w-3 h-3 text-primary" />
-                          <span className="text-muted-foreground">{beast.attack}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {beasts.length === 0 && (
+                {isLoading ? (
+                  <div className="text-center py-12">
+                    <Package className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50 animate-pulse" />
+                    <p className="text-muted-foreground">Loading your beasts...</p>
+                  </div>
+                ) : error ? (
+                  <div className="text-center py-12">
+                    <Package className="w-16 h-16 mx-auto mb-4 text-destructive opacity-50" />
+                    <p className="text-destructive mb-4">{error}</p>
+                    <Button onClick={() => window.location.reload()}>RETRY</Button>
+                  </div>
+                ) : beasts.length === 0 ? (
                   <div className="text-center py-12">
                     <Package className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-                    <p className="text-muted-foreground mb-4">No beasts in your inventory yet.</p>
-                    <Link href="/create">
-                      <Button>CREATE YOUR FIRST BEAST</Button>
-                    </Link>
+                    <p className="text-muted-foreground mb-4">
+                      {!address ? 'Connect your wallet to see your beasts' : 'No beasts in your inventory yet.'}
+                    </p>
+                    {address && (
+                      <Link href="/create">
+                        <Button>CREATE YOUR FIRST BEAST</Button>
+                      </Link>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    {beasts.map(beast => {
+                      const beastType = beast.traits?.find((t: any) => t.trait_type === 'Type')?.value || 'Unknown'
+                      const element = beast.traits?.find((t: any) => t.trait_type === 'Element')?.value || 'Unknown'
+                      const rarity = beast.traits?.find((t: any) => t.trait_type === 'Rarity')?.value || 'Common'
+                      
+                      return (
+                        <div
+                          key={beast.id}
+                          onClick={() => setSelectedBeast(beast)}
+                          className={`bg-muted border-2 p-4 cursor-pointer transition-all hover:border-primary ${
+                            selectedBeast?.id === beast.id ? 'border-primary' : 'border-border'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <h3 className="font-bold text-foreground mb-1">{beast.name}</h3>
+                              <div className="text-xs text-muted-foreground font-mono">{beastType}</div>
+                            </div>
+                            <div className="text-2xl">🐉</div>
+                          </div>
+
+                          <div className="flex items-center gap-2 mb-3 flex-wrap">
+                            <Badge variant="outline">{element}</Badge>
+                            <Badge className={RARITY_COLORS[rarity as keyof typeof RARITY_COLORS]}>
+                              {rarity}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground ml-auto">LVL {beast.level}</span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className="flex items-center gap-1">
+                              <Heart className="w-3 h-3 text-destructive" />
+                              <span className="text-muted-foreground">{beast.hp}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Swords className="w-3 h-3 text-primary" />
+                              <span className="text-muted-foreground">{beast.attack}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </CardContent>
@@ -172,10 +191,12 @@ export default function InventoryPage() {
                       <div>
                         <h3 className="text-2xl font-bold text-foreground mb-1">{selectedBeast.name}</h3>
                         <div className="flex items-center gap-2">
-                          <span className="text-sm text-muted-foreground">{selectedBeast.type}</span>
+                          <span className="text-sm text-muted-foreground">
+                            {selectedBeast.traits?.find((t: any) => t.trait_type === 'Type')?.value || 'Unknown'}
+                          </span>
                           <span className="text-sm">•</span>
-                          <span className={`text-sm font-bold ${RARITY_COLORS[selectedBeast.rarity as keyof typeof RARITY_COLORS]}`}>
-                            {selectedBeast.rarity}
+                          <span className={`text-sm font-bold ${RARITY_COLORS[(selectedBeast.traits?.find((t: any) => t.trait_type === 'Rarity')?.value || 'Common') as keyof typeof RARITY_COLORS]}`}>
+                            {selectedBeast.traits?.find((t: any) => t.trait_type === 'Rarity')?.value || 'Common'}
                           </span>
                         </div>
                       </div>
@@ -187,7 +208,9 @@ export default function InventoryPage() {
 
                       <div className="bg-muted border-2 border-border p-4">
                         <div className="text-sm text-muted-foreground mb-1">Element</div>
-                        <div className="text-lg font-bold text-accent">{selectedBeast.element}</div>
+                        <div className="text-lg font-bold text-accent">
+                          {selectedBeast.traits?.find((t: any) => t.trait_type === 'Element')?.value || 'Unknown'}
+                        </div>
                       </div>
 
                       <div className="space-y-3">
@@ -196,7 +219,7 @@ export default function InventoryPage() {
                             <Heart className="w-4 h-4 text-destructive" />
                             <span className="text-sm text-muted-foreground">HP</span>
                           </div>
-                          <span className="font-bold text-foreground">{selectedBeast.hp}</span>
+                          <span className="font-bold text-foreground">{selectedBeast.hp} / {selectedBeast.max_hp}</span>
                         </div>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
@@ -223,9 +246,11 @@ export default function InventoryPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Button className="w-full">
-                        BATTLE
-                      </Button>
+                      <Link href="/battle">
+                        <Button className="w-full">
+                          BATTLE
+                        </Button>
+                      </Link>
                       <Button variant="destructive" className="w-full">
                         <Trash2 className="w-4 h-4 mr-2" />
                         DELETE

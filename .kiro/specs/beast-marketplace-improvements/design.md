@@ -8,6 +8,9 @@ This design addresses multiple improvements to the ArenaRise beast marketplace a
 3. Implementation of beast purchase flow with TON payment
 4. Default PVP selection on battle page
 5. Removal of mock data in favor of database queries
+6. Real beast inventory fetching from database
+7. Real statistics API endpoint for home page
+8. Automatic user registration on wallet connection
 
 The system follows a client-server architecture where the Next.js frontend communicates with both a Supabase database and an external blockchain backend service.
 
@@ -173,6 +176,55 @@ The system follows a client-server architecture where the Next.js frontend commu
 }
 ```
 
+#### `/api/stats` (GET)
+**Purpose**: Fetch real ArenaRise statistics for home page display
+**Query Parameters:** None
+
+**Response:**
+```typescript
+{
+  totalBeasts: number
+  activePlayers: number
+  battlesFought: number
+  totalVolume: string
+}
+```
+
+**Process:**
+1. Query beasts table for total count
+2. Query users table for total count
+3. Query battles table for total count
+4. Calculate total volume from transactions or set to calculated value
+5. Return aggregated statistics
+
+#### `/api/users` (POST)
+**Purpose**: Create or verify user record on wallet connection
+**Request:**
+```typescript
+{
+  wallet_address: string
+}
+```
+
+**Response:**
+```typescript
+{
+  success: boolean
+  user: {
+    id: string
+    wallet_address: string
+    created_at: string
+  }
+  isNew: boolean
+}
+```
+
+**Process:**
+1. Check if wallet_address exists in users table
+2. If not exists, insert new user record
+3. If exists, return existing user
+4. Return user data with isNew flag
+
 ## Data Models
 
 ### Beast
@@ -264,6 +316,18 @@ interface BeastMove {
 ### Property 10: Real data usage
 *For any* beast or enemy display, the data should come from database queries, not from hardcoded mock arrays
 **Validates: Requirements 7.1, 7.2**
+
+### Property 11: Inventory beast filtering
+*For any* user wallet address, the inventory page should only display beasts where the owner_address matches that wallet address
+**Validates: Requirements 8.1**
+
+### Property 12: Statistics accuracy
+*For any* statistics API call, the returned values should match the actual counts in the database tables
+**Validates: Requirements 9.1, 9.2, 9.3, 9.4, 9.5**
+
+### Property 13: User registration idempotency
+*For any* wallet address, calling the user registration endpoint multiple times should not create duplicate user records
+**Validates: Requirements 10.1, 10.2, 10.3**
 
 ## Error Handling
 

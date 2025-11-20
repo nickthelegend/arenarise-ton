@@ -6,10 +6,44 @@ import { Navbar } from '@/components/navbar'
 import { Button } from '@/components/8bitcn/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/8bitcn/card'
 import { useTonAddress, useTonConnectUI } from '@tonconnect/ui-react'
+import { useEffect, useState } from 'react'
+
+interface Stats {
+  totalBeasts: number
+  activePlayers: number
+  battlesFought: number
+  totalVolume: string
+}
 
 export default function HomePage() {
   const address = useTonAddress()
   const [tonConnectUI] = useTonConnectUI()
+  const [stats, setStats] = useState<Stats>({
+    totalBeasts: 0,
+    activePlayers: 0,
+    battlesFought: 0,
+    totalVolume: '$0'
+  })
+  const [isLoadingStats, setIsLoadingStats] = useState(true)
+
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        setIsLoadingStats(true)
+        const response = await fetch('/api/stats')
+        if (response.ok) {
+          const data = await response.json()
+          setStats(data)
+        }
+      } catch (error) {
+        console.error('Error fetching stats:', error)
+      } finally {
+        setIsLoadingStats(false)
+      }
+    }
+
+    fetchStats()
+  }, [])
 
   return (
     <div className="min-h-screen">
@@ -150,24 +184,38 @@ export default function HomePage() {
             <Card className="border-primary">
               <CardContent className="p-8">
                 <h2 className="text-3xl font-bold mb-8 text-center text-primary">ARENARISE STATS</h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                  <div className="text-center">
-                    <div className="text-3xl md:text-4xl font-bold text-accent mb-2">12,547</div>
-                    <div className="text-sm text-muted-foreground">Total Beasts</div>
+                {isLoadingStats ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground animate-pulse">Loading stats...</p>
                   </div>
-                  <div className="text-center">
-                    <div className="text-3xl md:text-4xl font-bold text-secondary mb-2">8,392</div>
-                    <div className="text-sm text-muted-foreground">Active Players</div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                    <div className="text-center">
+                      <div className="text-3xl md:text-4xl font-bold text-accent mb-2">
+                        {stats.totalBeasts.toLocaleString()}
+                      </div>
+                      <div className="text-sm text-muted-foreground">Total Beasts</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-3xl md:text-4xl font-bold text-secondary mb-2">
+                        {stats.activePlayers.toLocaleString()}
+                      </div>
+                      <div className="text-sm text-muted-foreground">Active Players</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-3xl md:text-4xl font-bold text-primary mb-2">
+                        {stats.battlesFought.toLocaleString()}
+                      </div>
+                      <div className="text-sm text-muted-foreground">Battles Fought</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-3xl md:text-4xl font-bold text-chart-4 mb-2">
+                        {stats.totalVolume}
+                      </div>
+                      <div className="text-sm text-muted-foreground">Total Volume</div>
+                    </div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-3xl md:text-4xl font-bold text-primary mb-2">45,678</div>
-                    <div className="text-sm text-muted-foreground">Battles Fought</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl md:text-4xl font-bold text-chart-4 mb-2">$2.5M</div>
-                    <div className="text-sm text-muted-foreground">Total Volume</div>
-                  </div>
-                </div>
+                )}
               </CardContent>
             </Card>
 

@@ -95,3 +95,37 @@ This document specifies improvements to the ArenaRise beast marketplace applicat
 2. WHEN displaying enemies THEN the system SHALL fetch enemy data from the database instead of using mock arrays
 3. WHEN the database query returns no results THEN the system SHALL display an appropriate empty state message
 4. WHEN the database query fails THEN the system SHALL display an error message to the user
+
+### Requirement 8
+
+**User Story:** As a user, I want to view my real beast inventory, so that I can see the beasts I actually own instead of mock data.
+
+#### Acceptance Criteria
+
+1. WHEN a user navigates to the inventory page THEN the system SHALL fetch beasts from the database filtered by the user's wallet address
+2. WHEN the inventory page loads THEN the system SHALL display a loading state while fetching beasts
+3. WHEN the user has no beasts THEN the system SHALL display an empty state with a call-to-action to create a beast
+4. WHEN the database query fails THEN the system SHALL display an error message to the user
+
+### Requirement 9
+
+**User Story:** As a visitor, I want to see real ArenaRise statistics on the home page, so that I can understand the platform's activity and growth.
+
+#### Acceptance Criteria
+
+1. WHEN the home page loads THEN the system SHALL fetch real statistics from the database via a single API endpoint
+2. WHEN displaying statistics THEN the system SHALL show the total number of beasts created
+3. WHEN displaying statistics THEN the system SHALL show the total number of active players
+4. WHEN displaying statistics THEN the system SHALL show the total number of battles fought
+5. WHEN displaying statistics THEN the system SHALL calculate and display the total trading volume
+
+### Requirement 10
+
+**User Story:** As a user, I want my wallet address to be automatically registered in the system when I connect, so that I can immediately start using the application without manual registration.
+
+#### Acceptance Criteria
+
+1. WHEN a user connects their TON wallet THEN the system SHALL check if the wallet address exists in the users table
+2. WHEN the wallet address does not exist THEN the system SHALL insert a new user record with the wallet address
+3. WHEN the wallet address already exists THEN the system SHALL not create a duplicate record
+4. WHEN user creation fails THEN the system SHALL log the error but allow the user to continue using the application

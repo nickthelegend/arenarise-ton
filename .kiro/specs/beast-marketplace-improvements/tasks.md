@@ -241,12 +241,23 @@
     - **Property 5: Preview data completeness**
     - **Validates: Requirements 4.1, 4.2, 4.3**
 
-- [ ] 8. Add wallet connection validation to create page
+- [x] 8. Add wallet connection validation to create page
 
 
 
 
-  - [ ] 8.1 Implement redirect for non-connected wallets
+
+
+
+
+  - [x] 8.1 Implement redirect for non-connected wallets
+
+
+
+
+
+
+
 
     - Check wallet connection status on page load
     - Redirect to home page if not connected
@@ -257,6 +268,103 @@
     - **Property 1: Wallet connection requirement**
     - **Validates: Requirements 2.1**
 
-- [ ] 9. Final checkpoint - Ensure all tests pass
+- [ ] 9. Update inventory page to fetch real beast data
+  - [x] 9.1 Remove mock data from inventory page
 
+
+    - Remove MOCK_BEASTS array from inventory page
+    - Add state for loading and error handling
+    - _Requirements: 8.1_
+
+
+  - [x] 9.2 Implement beast fetching in inventory page
+
+    - Add useEffect to fetch beasts from /api/beasts with wallet address
+    - Display loading state while fetching
+    - Handle empty state when no beasts found
+    - Handle error state on fetch failure
+    - _Requirements: 8.1, 8.2, 8.3, 8.4_
+
+  - [ ]* 9.3 Write property test for inventory filtering
+    - **Property 11: Inventory beast filtering**
+    - **Validates: Requirements 8.1**
+
+- [x] 10. Create statistics API endpoint
+
+
+
+
+  - [x] 10.1 Implement /api/stats endpoint
+
+
+
+
+    - Create GET /api/stats route
+    - Query beasts table for total count
+    - Query users table for active players count
+    - Query battles table for total battles count
+    - Calculate or retrieve total volume
+    - Return aggregated statistics
+    - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5_
+
+  - [ ]* 10.2 Write property test for statistics accuracy
+    - **Property 12: Statistics accuracy**
+    - **Validates: Requirements 9.1, 9.2, 9.3, 9.4, 9.5**
+-
+
+- [x] 11. Update home page to use real statistics
+
+
+
+  - [x] 11.1 Fetch real stats from API
+
+
+
+
+    - Remove mock statistics from home page
+    - Add useEffect to fetch from /api/stats
+    - Update UI to display real statistics
+    - Add loading state for statistics
+    - _Requirements: 9.1_
+- [x] 12. Implement automatic user registration
+
+
+
+
+- [ ] 12. Implement automatic user registration
+
+  - [x] 12.1 Create user registration API endpoint
+
+
+
+
+    - Create POST /api/users route
+    - Check if wallet address exists in users table
+    - Insert new user if not exists
+    - Return user data with isNew flag
+    - Handle errors gracefully
+    - _Requirements: 10.1, 10.2, 10.3, 10.4_
+
+  - [x] 12.2 Add user registration to wallet connection
+
+
+
+
+
+
+
+
+
+
+    - Update wallet provider or connection handler
+    - Call /api/users when wallet connects
+    - Handle registration response
+    - Log errors but don't block user flow
+    - _Requirements: 10.1, 10.2, 10.4_
+
+  - [ ]* 12.3 Write property test for user registration idempotency
+    - **Property 13: User registration idempotency**
+    - **Validates: Requirements 10.1, 10.2, 10.3**
+
+- [ ] 13. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.

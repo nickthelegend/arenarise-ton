@@ -27,19 +27,35 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     async function handleWalletConnection() {
       if (address) {
         try {
-          // Get or create user
+          // Call user registration API endpoint
           const response = await fetch('/api/users', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ wallet_address: address })
           })
 
+          if (!response.ok) {
+            throw new Error(`API request failed with status ${response.status}`)
+          }
+
           const data = await response.json()
-          if (data.user) {
+          
+          if (data.success && data.user) {
             setUserId(data.user.id)
+            if (data.isNew) {
+              console.log('New user registered:', data.user.wallet_address)
+            } else {
+              console.log('Existing user connected:', data.user.wallet_address)
+            }
+          } else {
+            console.error('Failed to register/fetch user:', data.error)
+            // Don't block user flow on registration failure
+            setUserId(null)
           }
         } catch (error) {
-          console.error('Error handling wallet connection:', error)
+          console.error('Error during user registration:', error)
+          // Log error but don't block user flow
+          setUserId(null)
         }
       } else {
         setUserId(null)
