@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
-// Get beasts by owner address
+// Get beasts by wallet address
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const owner_address = searchParams.get('owner_address')
+    const wallet_address = searchParams.get('wallet_address')
 
-    if (!owner_address) {
+    if (!wallet_address) {
       return NextResponse.json(
-        { error: 'Owner address is required' },
+        { error: 'Wallet address is required' },
         { status: 400 }
       )
     }
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const { data: beasts, error } = await supabase
       .from('beasts')
       .select('*')
-      .eq('owner_address', owner_address)
+      .eq('owner_address', wallet_address)
 
     if (error) {
       return NextResponse.json(
@@ -26,7 +26,8 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ beasts })
+    // Return empty array if no beasts found
+    return NextResponse.json({ beasts: beasts || [] })
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || 'Internal server error' },

@@ -142,9 +142,15 @@
     - **Validates: Requirements 6.1**
 -
 
-- [ ] 6. Remove mock data and implement real data fetching
+- [x] 6. Remove mock data and implement real data fetching
 
-  - [-] 6.1 Create API endpoint to fetch user beasts
+
+
+  - [x] 6.1 Create API endpoint to fetch user beasts
+
+
+
+
 
 
     - Implement GET `/api/beasts` with wallet_address query param
@@ -152,8 +158,14 @@
     - Return array of beasts with all attributes
     - Handle empty results with empty array
     - _Requirements: 7.1, 7.3_
+-
 
-  - [ ] 6.2 Update battle page to fetch real beast data
+  - [x] 6.2 Update battle page to fetch real beast data
+
+
+
+
+
 
     - Remove mockBeasts array
     - Add useEffect to fetch beasts from API
@@ -161,15 +173,27 @@
     - Display loading state while fetching
     - Show empty state if no beasts found
     - _Requirements: 7.1, 7.3_
+-
 
-  - [ ] 6.3 Create API endpoint to fetch enemies
+  - [x] 6.3 Create API endpoint to fetch enemies
+
+
+
+
+
 
     - Implement GET `/api/enemies` endpoint
     - Query enemies from database (or generate procedurally)
     - Return array of enemy data
     - _Requirements: 7.2_
+-
 
-  - [ ] 6.4 Update battle page to fetch real enemy data
+  - [x] 6.4 Update battle page to fetch real enemy data
+
+
+
+
+
 
     - Remove mockEnemies array
     - Add useEffect to fetch enemies from API
@@ -189,9 +213,17 @@
     - Test error handling for database failures
     - _Requirements: 7.1, 7.2, 7.4_
 
-- [ ] 7. Update create page preview display
+- [x] 7. Update create page preview display
 
-  - [ ] 7.1 Ensure all beast attributes are displayed
+
+
+
+
+
+
+  - [x] 7.1 Ensure all beast attributes are displayed
+
+
 
     - Verify name, description, and emoji/image display
     - Verify all combat stats (HP, Attack, Defense, Speed) display
@@ -199,11 +231,20 @@
     - Verify purchase price displays as "1 TON"
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
 
-  - [ ]* 7.2 Write property test for preview completeness
+
+
+
+
+  - [x]* 7.2 Write property test for preview completeness
+
+
     - **Property 5: Preview data completeness**
     - **Validates: Requirements 4.1, 4.2, 4.3**
 
 - [ ] 8. Add wallet connection validation to create page
+
+
+
 
   - [ ] 8.1 Implement redirect for non-connected wallets
 

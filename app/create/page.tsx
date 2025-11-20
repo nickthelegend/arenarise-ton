@@ -9,13 +9,15 @@ import { Button } from '@/components/8bitcn/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/8bitcn/card'
 import { Badge } from '@/components/8bitcn/badge'
 import { useTonAddress, useTonConnectUI } from '@tonconnect/ui-react'
-import { Address, toNano } from '@ton/core'
+import { toNano } from '@ton/core'
 import { PAYMENT_ADDRESS, BEAST_PURCHASE_PRICE } from '@/lib/constants'
+import { useToast } from '@/hooks/use-toast'
 
 export default function CreatePage() {
   const router = useRouter()
   const address = useTonAddress()
   const [tonConnectUI] = useTonConnectUI()
+  const { toast } = useToast()
   
   const [generatedBeast, setGeneratedBeast] = useState<any>(null)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -26,9 +28,14 @@ export default function CreatePage() {
   // Redirect if not connected
   useEffect(() => {
     if (!address) {
+      toast({
+        title: 'Wallet Not Connected',
+        description: 'Please connect your wallet to create a beast',
+        variant: 'destructive',
+      })
       router.push('/')
     }
-  }, [address, router])
+  }, [address, router, toast])
 
   const handleGenerateBeast = async () => {
     if (!address) {
@@ -197,7 +204,17 @@ export default function CreatePage() {
                   ) : (
                     <>
                       <div className="text-center mb-6">
-                        <div className="text-6xl mb-4">🐉</div>
+                        {generatedBeast.image_ipfs_uri ? (
+                          <div className="w-32 h-32 mx-auto mb-4 border-4 border-primary bg-muted flex items-center justify-center overflow-hidden">
+                            <img 
+                              src={generatedBeast.image_ipfs_uri} 
+                              alt={generatedBeast.name}
+                              className="w-full h-full object-cover pixelated"
+                            />
+                          </div>
+                        ) : (
+                          <div className="text-6xl mb-4">🐉</div>
+                        )}
                         <h3 className="text-2xl font-bold text-foreground mb-2">
                           {generatedBeast.name}
                         </h3>
@@ -215,6 +232,12 @@ export default function CreatePage() {
 
                       <div className="grid grid-cols-2 gap-4 mb-6">
                         <div className="bg-background border-2 border-border p-3">
+                          <div className="text-xs text-muted-foreground mb-1 font-mono">HP</div>
+                          <div className="text-xl font-bold text-primary font-mono">
+                            {generatedBeast.hp}
+                          </div>
+                        </div>
+                        <div className="bg-background border-2 border-border p-3">
                           <div className="text-xs text-muted-foreground mb-1 font-mono">ATTACK</div>
                           <div className="text-xl font-bold text-primary font-mono">
                             {generatedBeast.attack}
@@ -230,12 +253,6 @@ export default function CreatePage() {
                           <div className="text-xs text-muted-foreground mb-1 font-mono">SPEED</div>
                           <div className="text-xl font-bold text-foreground font-mono">
                             {generatedBeast.speed}
-                          </div>
-                        </div>
-                        <div className="bg-background border-2 border-border p-3">
-                          <div className="text-xs text-muted-foreground mb-1 font-mono">HP</div>
-                          <div className="text-xl font-bold text-primary font-mono">
-                            {generatedBeast.hp}
                           </div>
                         </div>
                       </div>
