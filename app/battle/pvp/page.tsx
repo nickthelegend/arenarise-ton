@@ -103,15 +103,31 @@ export default function PVPBattlePage() {
 
     try {
       // Find another user with beasts (matchmaking)
-      // For now, find any other user's beast
-      const { data: allBeasts, error: beastsError } = await supabase
+      // First try to find beasts from other users
+      let { data: allBeasts, error: beastsError } = await supabase
         .from('beasts')
         .select('*')
         .neq('owner_address', address)
         .limit(10)
 
-      if (beastsError || !allBeasts || allBeasts.length === 0) {
-        throw new Error('No opponents available. Please try again later.')
+      // If no other users' beasts found, allow self-play (battle your own beasts)
+      if (!allBeasts || allBeasts.length === 0) {
+        const { data: myOtherBeasts, error: myBeastsError } = await supabase
+          .from('beasts')
+          .select('*')
+          .eq('owner_address', address)
+          .neq('id', selectedBeast.id)
+          .limit(10)
+
+        if (myBeastsError) {
+          throw new Error('Error finding opponents. Please try again.')
+        }
+
+        if (!myOtherBeasts || myOtherBeasts.length === 0) {
+          throw new Error('No opponents available. Create more beasts to battle!')
+        }
+
+        allBeasts = myOtherBeasts
       }
 
       // Select random opponent beast
