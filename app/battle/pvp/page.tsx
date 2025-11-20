@@ -95,7 +95,9 @@ export default function PVPBattlePage() {
       // For now, find any other user's beast
       const { data: allBeasts, error: beastsError } = await supabase
         .from('beasts')
-        .select('*')\n        .neq('owner_address', address)\n        .limit(10)
+        .select('*')
+        .neq('owner_address', address)
+        .limit(10)
 
       if (beastsError || !allBeasts || allBeasts.length === 0) {
         throw new Error('No opponents available. Please try again later.')
