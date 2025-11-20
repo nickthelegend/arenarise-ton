@@ -25,6 +25,16 @@ CREATE TABLE IF NOT EXISTS moves (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Beast moves junction table (links beasts to their assigned moves)
+CREATE TABLE IF NOT EXISTS beast_moves (
+  beast_id INTEGER NOT NULL REFERENCES beasts(id) ON DELETE CASCADE,
+  move_id INTEGER NOT NULL REFERENCES moves(id) ON DELETE CASCADE,
+  slot INTEGER NOT NULL CHECK (slot >= 1 AND slot <= 4),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  PRIMARY KEY (beast_id, slot),
+  UNIQUE (beast_id, move_id)
+);
+
 -- Battles table
 CREATE TABLE IF NOT EXISTS battles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -70,6 +80,8 @@ CREATE INDEX IF NOT EXISTS idx_battle_moves_battle ON battle_moves(battle_id);
 CREATE INDEX IF NOT EXISTS idx_bets_battle ON bets(battle_id);
 CREATE INDEX IF NOT EXISTS idx_bets_user ON bets(user_id);
 CREATE INDEX IF NOT EXISTS idx_beasts_owner ON beasts(owner_address);
+CREATE INDEX IF NOT EXISTS idx_beast_moves_beast ON beast_moves(beast_id);
+CREATE INDEX IF NOT EXISTS idx_beast_moves_move ON beast_moves(move_id);
 
 -- Insert predefined moves
 INSERT INTO moves (name, damage, type, description) VALUES

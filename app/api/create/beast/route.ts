@@ -63,10 +63,69 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Assign default moves to the beast
+    let assignedMoves = null
+    try {
+      // Get all available moves
+      const { data: allMoves, error: movesError } = await supabase
+        .from('moves')
+        .select('id')
+
+      if (movesError || !allMoves || allMoves.length < 4) {
+        console.error('Failed to fetch moves for assignment:', movesError)
+        // Continue without moves - this is not a critical failure
+      } else {
+        // Select 4 random moves
+        const shuffled = [...allMoves].sort(() => Math.random() - 0.5)
+        const selectedMoves = shuffled.slice(0, 4)
+
+        // Insert beast_moves records
+        const beastMovesRecords = selectedMoves.map((move, index) => ({
+          beast_id: beast.id,
+          move_id: move.id,
+          slot: index + 1
+        }))
+
+        const { error: insertMovesError } = await supabase
+          .from('beast_moves')
+          .insert(beastMovesRecords)
+
+        if (insertMovesError) {
+          console.error('Failed to assign moves:', insertMovesError)
+          // Continue without moves - this is not a critical failure
+        } else {
+          // Fetch the full move details for the response
+          const { data: movesData, error: fetchError } = await supabase
+            .from('beast_moves')
+            .select(`
+              slot,
+              move_id,
+              moves (
+                id,
+                name,
+                damage,
+                type,
+                description
+              )
+            `)
+            .eq('beast_id', beast.id)
+            .order('slot')
+
+          if (!fetchError && movesData) {
+            assignedMoves = movesData
+          }
+        }
+      }
+    } catch (moveError: any) {
+      console.error('Error during move assignment:', moveError)
+      // Continue without moves - this is not a critical failure
+    }
+
     return NextResponse.json({
       success: true,
       beast,
-      mintData
+      mintData,
+      moves: assignedMoves
     }, { status: 201 })
 
   } catch (error: any) {

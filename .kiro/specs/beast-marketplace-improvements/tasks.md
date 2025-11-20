@@ -1,6 +1,8 @@
 # Implementation Plan
 
-- [ ] 1. Restore retro 8-bit font styling
+- [x] 1. Restore retro 8-bit font styling
+
+
 
 
 
@@ -11,19 +13,31 @@
   - Test font rendering across different browsers
   - _Requirements: 1.1, 1.2, 1.3_
 
-- [-] 2. Implement beast-moves database relationship
+- [x] 2. Implement beast-moves database relationship
 
 
 
-  - [-] 2.1 Create beast_moves junction table migration
+
+-
+
+  - [x] 2.1 Create beast_moves junction table migration
+
+
+
 
 
     - Add SQL migration for beast_moves table with beast_id, move_id, and slot columns
     - Add foreign key constraints to beasts and moves tables
     - Add indexes for performance
     - _Requirements: 3.1, 3.2_
+-
 
-  - [ ] 2.2 Create API endpoint to assign default moves
+  - [x] 2.2 Create API endpoint to assign default moves
+
+
+
+
+
 
     - Implement POST `/api/beasts/[id]/moves` endpoint
     - Select 4 random moves from moves table
@@ -31,16 +45,20 @@
     - Return assigned moves in response
     - _Requirements: 3.1, 3.2_
 
-  - [ ] 2.3 Write property test for move assignment
+  - [x] 2.3 Write property test for move assignment
+
+
 
 
 
     - **Property 4: Battle moves assignment**
     - **Validates: Requirements 3.1, 3.2**
+-
 
 - [ ] 3. Update beast creation API to assign moves
 
-  - [ ] 3.1 Modify `/api/create/beast` to call move assignment
+  - [-] 3.1 Modify `/api/create/beast` to call move assignment
+
 
     - After beast insertion, call move assignment logic
     - Handle errors if move assignment fails
