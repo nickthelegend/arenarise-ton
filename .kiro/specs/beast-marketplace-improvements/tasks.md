@@ -120,9 +120,17 @@
     - **Validates: Requirements 5.5**
 -
 
-- [ ] 5. Set PVP as default battle mode
+- [x] 5. Set PVP as default battle mode
 
-  - [ ] 5.1 Update battle page default tab
+
+
+  - [x] 5.1 Update battle page default tab
+
+
+
+
+
+
 
     - Change Tabs defaultValue from "pve" to "pvp"
     - Verify tab switching works correctly
@@ -132,10 +140,12 @@
   - [ ]* 5.2 Write property test for PVP default
     - **Property 9: PVP default selection**
     - **Validates: Requirements 6.1**
+-
 
 - [ ] 6. Remove mock data and implement real data fetching
 
-  - [ ] 6.1 Create API endpoint to fetch user beasts
+  - [-] 6.1 Create API endpoint to fetch user beasts
+
 
     - Implement GET `/api/beasts` with wallet_address query param
     - Query beasts table filtered by owner_address
