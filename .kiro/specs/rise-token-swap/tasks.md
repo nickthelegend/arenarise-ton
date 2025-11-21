@@ -41,9 +41,12 @@
     - **Validates: Requirements 2.4**
 -
 
-- [ ] 3. Implement TON payment transaction flow
+- [x] 3. Implement TON payment transaction flow
 
-  - [ ] 3.1 Create payment transaction handler using TonConnect
+
+  - [x] 3.1 Create payment transaction handler using TonConnect
+
+
 
     - Implement `sendTonPayment(amount: string)` function
     - Add transaction state management (idle, pending, success, error)
