@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Navbar } from '@/components/navbar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/8bitcn/card'
@@ -42,7 +42,7 @@ interface Battle {
   winner_id: string | null
 }
 
-export default function PVPBattlePage() {
+function PVPBattlePageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const address = useTonAddress()
@@ -276,5 +276,24 @@ export default function PVPBattlePage() {
         </Card>
       </main>
     </div>
+  )
+}
+
+
+export default function PVPBattlePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen">
+        <Navbar />
+        <main className="container mx-auto px-4 py-8">
+          <div className="text-center py-12">
+            <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-primary" />
+            <p className="text-muted-foreground">Loading battle...</p>
+          </div>
+        </main>
+      </div>
+    }>
+      <PVPBattlePageContent />
+    </Suspense>
   )
 }
