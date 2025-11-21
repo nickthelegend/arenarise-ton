@@ -44,7 +44,12 @@
 - [x] 3. Implement TON payment transaction flow
 
 
+
+
+-
+
   - [x] 3.1 Create payment transaction handler using TonConnect
+
 
 
 
@@ -63,7 +68,14 @@
 
 - [ ] 4. Implement backend API integration for RISE token transfer
 
-  - [ ] 4.1 Create backend API client function
+  - [x] 4.1 Create backend API client function
+
+
+
+
+
+
+
 
     - Implement `requestRiseTokens(walletAddress: string, riseAmount: number)` function
     - Add error handling for API failures
@@ -79,10 +91,19 @@
     - Test 4xx errors show generic error
     - Test network timeout triggers retry
     - _Requirements: 4.4_
+-
 
-- [ ] 5. Create database API endpoint for transaction history
+- [x] 5. Create database API endpoint for transaction history
 
-  - [ ] 5.1 Implement `/api/swap/history` endpoint
+
+
+  - [x] 5.1 Implement `/api/swap/history` endpoint
+
+
+
+
+
+
 
     - Create GET endpoint to fetch transactions by wallet address
     - Create POST endpoint to record new swap transactions
@@ -94,10 +115,20 @@
     - Test recording new transactions
     - Test empty history returns empty array
     - _Requirements: 5.1, 5.4_
+-
 
-- [ ] 6. Build swap page UI components
+- [x] 6. Build swap page UI components
 
-  - [ ] 6.1 Update swap page with real transaction flow
+
+
+
+  - [x] 6.1 Update swap page with real transaction flow
+
+
+
+
+
+
 
     - Replace mock data with real wallet connection check
     - Implement TON amount input with validation
@@ -106,7 +137,9 @@
     - Display user's TON balance
     - _Requirements: 1.1, 1.2, 2.1, 2.5, 6.1, 6.2, 6.3_
 
-  - [ ] 6.2 Implement swap button with state management
+  - [x] 6.2 Implement swap button with state management
+
+
     - Enable/disable based on validation
     - Show loading state during transaction
     - Handle success and error states
@@ -115,10 +148,18 @@
   - [ ]* 6.3 Write property test for wallet address display
     - **Property 9: Connected wallet address is displayed**
     - **Validates: Requirements 6.4**
+-
 
 - [ ] 7. Implement transaction history UI
 
-  - [ ] 7.1 Create transaction history component
+  - [x] 7.1 Create transaction history component
+
+
+
+
+
+
+
 
     - Fetch and display recent transactions on page load
     - Show TON amount, RISE amount, timestamp, and status for each transaction
@@ -134,9 +175,18 @@
     - **Property 8: Successful swap adds to history**
     - **Validates: Requirements 5.5**
 
-- [ ] 8. Integrate complete swap flow
+- [x] 8. Integrate complete swap flow
 
-  - [ ] 8.1 Wire together payment and token transfer
+
+
+-
+
+
+  - [x] 8.1 Wire together payment and token transfer
+
+
+
+
 
     - Connect TON payment confirmation to backend API call
     - Update transaction status in database after each step
@@ -144,7 +194,13 @@
     - Update transaction history after successful swap
     - _Requirements: 4.1, 4.3, 4.5, 5.5_
 
-  - [ ] 8.2 Add comprehensive error handling
+  - [x] 8.2 Add comprehensive error handling
+
+
+
+
+
+
 
     - Handle payment failures gracefully
     - Handle backend API failures with retry
