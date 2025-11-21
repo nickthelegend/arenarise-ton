@@ -101,7 +101,7 @@ describe('requestRiseTokens', () => {
     expect(result).toEqual(mockResponse)
     expect(global.fetch).toHaveBeenCalledTimes(1)
     expect(global.fetch).toHaveBeenCalledWith(
-      'https://arenarise-backend.vercel.app/api/send/rise',
+      '/api/send/rise',
       {
         method: 'POST',
         headers: {

@@ -1,4 +1,4 @@
-import { RISE_EXCHANGE_RATE, BACKEND_URL } from './constants'
+import { RISE_EXCHANGE_RATE } from './constants'
 
 /**
  * Calculate the RISE token amount for a given TON amount
@@ -43,7 +43,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Request RISE tokens from the backend service
+ * Request RISE tokens from the local API proxy
  * Includes automatic retry logic with exponential backoff for transient failures
  * 
  * @param walletAddress - The user's TON wallet address
@@ -61,8 +61,8 @@ export async function requestRiseTokens(
   
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      // Make the API request
-      const response = await fetch(`${BACKEND_URL}/api/send/rise`, {
+      // Make the API request to local proxy endpoint
+      const response = await fetch('/api/send/rise', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
