@@ -8,8 +8,8 @@ import { TonClient } from '@ton/ton'
 import { Button } from '@/components/8bitcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/8bitcn/card'
 import { Badge } from '@/components/8bitcn/badge'
-import { PAYMENT_ADDRESS } from '@/lib/constants'
-import { validateSwapAmount, formatTokenAmount, requestRiseTokens, RiseTransferError } from '@/lib/swap-utils'
+import { PAYMENT_ADDRESS, RISE_EXCHANGE_RATE } from '@/lib/constants'
+import { calculateRiseAmount, validateSwapAmount, formatTokenAmount, requestRiseTokens, RiseTransferError } from '@/lib/swap-utils'
 
 type TransactionStatus = 'idle' | 'payment-pending' | 'transfer-pending' | 'success' | 'error'
 
@@ -39,9 +39,9 @@ export default function SwapPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [canRetry, setCanRetry] = useState(false)
   
-  // Fixed RISE amount to send (200 RISE tokens)
+  // Calculate RISE amount based on TON input (1 TON = 3000 RISE)
   const riseAmount = tonAmount && validateSwapAmount(tonAmount) 
-    ? 200 
+    ? calculateRiseAmount(Number(tonAmount)) 
     : 0
 
   // Fetch TON balance when wallet is connected
@@ -526,7 +526,7 @@ export default function SwapPage() {
               <div className="flex items-center gap-2 p-4 bg-muted border-2 border-border">
                 <Info className="w-4 h-4 text-accent" />
                 <span className="text-sm font-mono">
-                  Fixed amount: 200 RISE tokens per swap
+                  1 TON = {RISE_EXCHANGE_RATE.toLocaleString()} RISE
                 </span>
               </div>
 

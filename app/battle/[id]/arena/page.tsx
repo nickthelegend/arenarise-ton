@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
+import { useTonAddress } from '@tonconnect/ui-react'
 import { Navbar } from '@/components/navbar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/8bitcn/card'
 import { Button } from '@/components/8bitcn/button'
 import { Badge } from '@/components/8bitcn/badge'
 import { HealthBar } from '@/components/8bitcn/health-bar'
 import { Swords, Zap, Shield, Heart, Flame, Sparkles } from 'lucide-react'
+import { requestRiseTokens, RiseTransferError } from '@/lib/swap-utils'
 
 // Mock battle data
 const mockPlayerBeast = {
@@ -42,12 +44,46 @@ const mockMoves = [
 export default function BattleArenaPage() {
   const router = useRouter()
   const params = useParams()
+  const walletAddress = useTonAddress()
   const [playerHp, setPlayerHp] = useState(mockPlayerBeast.hp)
   const [enemyHp, setEnemyHp] = useState(mockEnemyBeast.hp)
   const [battleLog, setBattleLog] = useState<string[]>(['Battle started!'])
   const [isPlayerTurn, setIsPlayerTurn] = useState(true)
   const [gameOver, setGameOver] = useState(false)
   const [winner, setWinner] = useState<'player' | 'enemy' | null>(null)
+  const [isTransferringReward, setIsTransferringReward] = useState(false)
+  const [rewardTransferred, setRewardTransferred] = useState(false)
+  const [rewardError, setRewardError] = useState<string | null>(null)
+
+  /**
+   * Send RISE tokens to the winner
+   */
+  const sendRewardToWinner = async () => {
+    if (!walletAddress) {
+      setRewardError('Wallet not connected')
+      return
+    }
+
+    setIsTransferringReward(true)
+    setRewardError(null)
+
+    try {
+      const result = await requestRiseTokens(walletAddress, 200)
+      console.log('Reward transferred successfully:', result)
+      setRewardTransferred(true)
+      setBattleLog(prev => [...prev, 'Reward transferred! Check your wallet.'])
+    } catch (error) {
+      console.error('Failed to transfer reward:', error)
+      if (error instanceof RiseTransferError) {
+        setRewardError(error.message)
+      } else {
+        setRewardError('Failed to transfer reward. Please contact support.')
+      }
+      setBattleLog(prev => [...prev, 'Reward transfer failed. Please contact support.'])
+    } finally {
+      setIsTransferringReward(false)
+    }
+  }
 
   const handleMove = (move: typeof mockMoves[0]) => {
     if (!isPlayerTurn || gameOver) return
@@ -78,6 +114,9 @@ export default function BattleArenaPage() {
       setGameOver(true)
       setWinner('player')
       setBattleLog(prev => [...prev, `${mockPlayerBeast.name} wins! You earned 200 $RISE!`])
+      
+      // Send reward to winner
+      sendRewardToWinner()
       return
     }
 
@@ -243,14 +282,43 @@ export default function BattleArenaPage() {
                 <h2 className="text-3xl font-bold mb-4 font-mono uppercase">
                   {winner === 'player' ? 'Victory!' : 'Defeat!'}
                 </h2>
-                <p className="text-lg mb-6 font-mono">
-                  {winner === 'player' 
-                    ? 'You won 200 $RISE tokens!' 
-                    : 'You lost 100 $RISE tokens.'}
-                </p>
+                
+                {winner === 'player' && (
+                  <div className="space-y-4 mb-6">
+                    <p className="text-lg font-mono">
+                      You won 200 $RISE tokens!
+                    </p>
+                    
+                    {isTransferringReward && (
+                      <div className="p-4 bg-blue-500/10 border-2 border-blue-500 text-blue-500 text-sm font-mono">
+                        Transferring reward to your wallet...
+                      </div>
+                    )}
+                    
+                    {rewardTransferred && (
+                      <div className="p-4 bg-green-500/10 border-2 border-green-500 text-green-500 text-sm font-mono">
+                        ✅ Reward transferred successfully! Check your wallet.
+                      </div>
+                    )}
+                    
+                    {rewardError && (
+                      <div className="p-4 bg-destructive/10 border-2 border-destructive text-destructive text-sm font-mono">
+                        ❌ {rewardError}
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {winner === 'enemy' && (
+                  <p className="text-lg mb-6 font-mono">
+                    You lost 100 $RISE tokens.
+                  </p>
+                )}
+                
                 <Button
                   size="lg"
                   onClick={() => router.push('/battle')}
+                  disabled={isTransferringReward}
                 >
                   Return to Battle Menu
                 </Button>
