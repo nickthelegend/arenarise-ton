@@ -77,3 +77,15 @@ export interface Bet {
   won: boolean | null
   created_at: string
 }
+
+export interface SwapTransaction {
+  id: string
+  wallet_address: string
+  ton_amount: string
+  rise_amount: string
+  status: 'pending' | 'completed' | 'failed'
+  transaction_hash?: string
+  error_message?: string
+  created_at: string
+  updated_at: string
+}

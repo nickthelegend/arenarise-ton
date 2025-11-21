@@ -72,6 +72,19 @@ CREATE TABLE IF NOT EXISTS bets (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Swap transactions table
+CREATE TABLE IF NOT EXISTS swap_transactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  wallet_address TEXT NOT NULL,
+  ton_amount DECIMAL(18, 9) NOT NULL,
+  rise_amount DECIMAL(18, 9) NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('pending', 'completed', 'failed')),
+  transaction_hash TEXT,
+  error_message TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_battles_status ON battles(status);
 CREATE INDEX IF NOT EXISTS idx_battles_player1 ON battles(player1_id);
@@ -82,6 +95,8 @@ CREATE INDEX IF NOT EXISTS idx_bets_user ON bets(user_id);
 CREATE INDEX IF NOT EXISTS idx_beasts_owner ON beasts(owner_address);
 CREATE INDEX IF NOT EXISTS idx_beast_moves_beast ON beast_moves(beast_id);
 CREATE INDEX IF NOT EXISTS idx_beast_moves_move ON beast_moves(move_id);
+CREATE INDEX IF NOT EXISTS idx_swap_wallet ON swap_transactions(wallet_address);
+CREATE INDEX IF NOT EXISTS idx_swap_created ON swap_transactions(created_at DESC);
 
 -- Insert predefined moves
 INSERT INTO moves (name, damage, type, description) VALUES
@@ -137,5 +152,11 @@ $$ LANGUAGE plpgsql;
 -- Trigger for battles table
 CREATE TRIGGER update_battles_updated_at
     BEFORE UPDATE ON battles
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Trigger for swap_transactions table
+CREATE TRIGGER update_swap_transactions_updated_at
+    BEFORE UPDATE ON swap_transactions
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();

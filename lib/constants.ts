@@ -15,3 +15,13 @@ export const BACKEND_URL = 'https://arenarise-backend.vercel.app'
  * Beast purchase price in TON
  */
 export const BEAST_PURCHASE_PRICE = '1'
+
+/**
+ * RISE token exchange rate (1 TON = 3000 RISE)
+ */
+export const RISE_EXCHANGE_RATE = 3000
+
+/**
+ * RISE jetton decimal places (standard TIP-003 jetton decimals)
+ */
+export const RISE_JETTON_DECIMALS = 9
