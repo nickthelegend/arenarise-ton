@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Loader2, Flame, Droplet, Wind, Zap, Mountain, Sparkles } from 'lucide-react'
+import { convertIpfsUrl } from '@/lib/ipfs'
 
 interface BeastImageProps {
   imageUrl?: string
@@ -73,6 +74,9 @@ export function BeastImage({
   const [imageError, setImageError] = useState(false)
   const [isLoading, setIsLoading] = useState(!!imageUrl) // Only show loading if we have an image to load
   
+  // Convert IPFS URLs to HTTP gateway URLs
+  const httpImageUrl = imageUrl ? convertIpfsUrl(imageUrl) : undefined
+  
   // Size classes
   const sizeClasses = {
     sm: 'w-16 h-16',
@@ -81,7 +85,7 @@ export function BeastImage({
   }
   
   // If no image URL or image failed to load, show type-based placeholder
-  if (!imageUrl || imageError) {
+  if (!httpImageUrl || imageError) {
     return (
       <div className={`relative ${sizeClasses[size]} ${className}`}>
         <TypeBasedPlaceholder 
@@ -104,7 +108,7 @@ export function BeastImage({
       
       {/* Beast image */}
       <img
-        src={imageUrl}
+        src={httpImageUrl}
         alt={beastName}
         className={`w-full h-full object-cover rounded-lg border-2 border-primary/30 transition-opacity duration-300 ${
           isLoading ? 'opacity-0' : 'opacity-100'

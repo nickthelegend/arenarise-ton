@@ -17,6 +17,8 @@ import { selectRandomEnemy } from '@/lib/enemy-utils'
 import { sendJettonTransfer } from '@/lib/jetton-transfer'
 import { validateStake } from '@/lib/stake-validation'
 import { PAYMENT_ADDRESS, RISE_JETTON_DECIMALS } from '@/lib/constants'
+import { BeastImage } from '@/components/battle/beast-image'
+import { convertIpfsUrl } from '@/lib/ipfs'
 
 interface Beast {
   id: number
@@ -27,6 +29,8 @@ interface Beast {
   attack: number
   defense: number
   traits: any
+  image_ipfs_uri?: string
+  image_url?: string
 }
 
 interface Enemy {
@@ -330,6 +334,9 @@ export default function BattlePage() {
 
     return beasts.map((beast) => {
       const beastType = beast.traits?.type || 'Unknown'
+      const rawImageUrl = beast.image_ipfs_uri || beast.image_url
+      const imageUrl = rawImageUrl ? convertIpfsUrl(rawImageUrl) : undefined
+      
       return (
         <Card
           key={beast.id}
@@ -352,6 +359,16 @@ export default function BattlePage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
+            {/* Beast Image */}
+            <div className="flex justify-center">
+              <BeastImage 
+                imageUrl={imageUrl}
+                beastName={beast.name}
+                beastType={beastType}
+                size="lg"
+              />
+            </div>
+            
             <HealthBar value={beast.hp} max={beast.max_hp} label="HP" />
             <div className="grid grid-cols-2 gap-2 text-xs font-mono">
               <div className="flex items-center gap-1">

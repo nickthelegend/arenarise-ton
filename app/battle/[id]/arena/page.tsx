@@ -36,6 +36,7 @@ interface Beast {
   level: number
   traits: any
   image_url?: string
+  image_ipfs_uri?: string
 }
 
 interface Move {
@@ -463,7 +464,7 @@ export default function BattleArenaPage() {
             <CardContent className="space-y-4">
               <div className="flex justify-center">
                 <BeastImage 
-                  imageUrl={myBeast.image_url}
+                  imageUrl={myBeast.image_ipfs_uri || myBeast.image_url}
                   beastName={myBeast.name}
                   beastType={myBeast.traits?.type}
                   size="md"
@@ -497,7 +498,7 @@ export default function BattleArenaPage() {
             <CardContent className="space-y-4">
               <div className="flex justify-center">
                 <BeastImage 
-                  imageUrl={opponentBeast.image_url}
+                  imageUrl={opponentBeast.image_ipfs_uri || opponentBeast.image_url}
                   beastName={opponentBeast.name}
                   beastType={opponentBeast.traits?.type}
                   size="md"
