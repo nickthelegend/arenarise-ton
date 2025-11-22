@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useTonAddress } from '@tonconnect/ui-react'
 import { Navbar } from '@/components/navbar'
@@ -8,325 +8,482 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/8bitcn/ca
 import { Button } from '@/components/8bitcn/button'
 import { Badge } from '@/components/8bitcn/badge'
 import { HealthBar } from '@/components/8bitcn/health-bar'
-import { Swords, Zap, Shield, Heart, Flame, Sparkles } from 'lucide-react'
-import { requestRiseTokens, RiseTransferError } from '@/lib/swap-utils'
+import { Swords, Zap, Shield, Sparkles, Trophy, Loader2, Coins } from 'lucide-react'
+import dynamic from 'next/dynamic'
 
-// Mock battle data
-const mockPlayerBeast = {
-  id: 1,
-  name: 'Fire Drake',
-  level: 15,
-  hp: 200,
-  maxHp: 200,
-  attack: 45,
-  defense: 30,
-  type: 'Fire',
+// Lazy load outcome animation component
+const OutcomeAnimation = dynamic(
+  () => import('@/components/battle/outcome-animation').then(mod => ({ default: mod.OutcomeAnimation })),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+        <Loader2 className="w-12 h-12 animate-spin text-primary" />
+      </div>
+    )
+  }
+)
+
+interface Beast {
+  id: number
+  name: string
+  hp: number
+  max_hp: number
+  attack: number
+  defense: number
+  level: number
+  traits: any
+  image_url?: string
 }
 
-const mockEnemyBeast = {
-  id: 2,
-  name: 'Thunder Wolf',
-  level: 12,
-  hp: 150,
-  maxHp: 150,
-  attack: 38,
-  defense: 25,
-  type: 'Electric',
+interface Move {
+  id: number
+  name: string
+  damage: number
+  type: string
+  description: string
 }
 
-const mockMoves = [
-  { id: 1, name: 'Fire Blast', damage: 50, icon: Flame, type: 'attack' },
-  { id: 2, name: 'Thunder Strike', damage: 45, icon: Zap, type: 'attack' },
-  { id: 3, name: 'Defend', damage: 0, icon: Shield, type: 'defense' },
-  { id: 4, name: 'Heal', damage: -30, icon: Heart, type: 'heal' },
-]
+interface Battle {
+  id: string
+  player1_id: string
+  player2_id: string
+  beast1_id: number
+  beast2_id: number
+  beast1: Beast
+  beast2: Beast
+  status: string
+  winner_id: string | null
+  battle_type: 'pvp'
+  reward_amount: number
+  bet_amount: number
+}
 
 export default function BattleArenaPage() {
   const router = useRouter()
   const params = useParams()
-  const walletAddress = useTonAddress()
-  const [playerHp, setPlayerHp] = useState(mockPlayerBeast.hp)
-  const [enemyHp, setEnemyHp] = useState(mockEnemyBeast.hp)
-  const [battleLog, setBattleLog] = useState<string[]>(['Battle started!'])
-  const [isPlayerTurn, setIsPlayerTurn] = useState(true)
-  const [gameOver, setGameOver] = useState(false)
-  const [winner, setWinner] = useState<'player' | 'enemy' | null>(null)
-  const [isTransferringReward, setIsTransferringReward] = useState(false)
-  const [rewardTransferred, setRewardTransferred] = useState(false)
-  const [rewardError, setRewardError] = useState<string | null>(null)
+  const battleId = params.id as string
+  const address = useTonAddress()
+  
+  const [userId, setUserId] = useState<string | null>(null)
+  const [battle, setBattle] = useState<Battle | null>(null)
+  const [myBeast, setMyBeast] = useState<Beast | null>(null)
+  const [opponentBeast, setOpponentBeast] = useState<Beast | null>(null)
+  const [myBeastHp, setMyBeastHp] = useState<number>(0)
+  const [opponentHp, setOpponentHp] = useState<number>(0)
+  const [moves, setMoves] = useState<Move[]>([])
+  const [isMyTurn, setIsMyTurn] = useState(true)
+  const [isExecutingMove, setIsExecutingMove] = useState(false)
+  const [battleLog, setBattleLog] = useState<string[]>([])
+  const [stakeAmount, setStakeAmount] = useState<number>(0)
+  const [showOutcomeAnimation, setShowOutcomeAnimation] = useState(false)
+  const [battleOutcome, setBattleOutcome] = useState<'victory' | 'defeat' | null>(null)
+  const [isPageLoading, setIsPageLoading] = useState(true)
+  const [isAnimationLoading, setIsAnimationLoading] = useState(false)
+  const [rewardAmount, setRewardAmount] = useState<number>(0)
 
-  /**
-   * Send RISE tokens to the winner
-   */
-  const sendRewardToWinner = async () => {
-    if (!walletAddress) {
-      setRewardError('Wallet not connected')
+  // Get user and battle data
+  useEffect(() => {
+    if (!address) {
+      router.push('/')
       return
     }
 
-    setIsTransferringReward(true)
-    setRewardError(null)
+    async function fetchBattleData() {
+      try {
+        // Get user
+        const userRes = await fetch(`/api/users?wallet_address=${address}`)
+        const userData = await userRes.json()
+        const currentUserId = userData.user?.id
+
+        if (!currentUserId) {
+          console.error('User not found')
+          return
+        }
+
+        setUserId(currentUserId)
+
+        // Get battle details
+        const battleRes = await fetch(`/api/battles?battle_id=${battleId}`)
+        const battleData = await battleRes.json()
+        
+        if (battleData.battle) {
+          const battleInfo = battleData.battle
+          setBattle(battleInfo)
+          
+          // Determine which beast is mine
+          const isPlayer1 = battleInfo.player1_id === currentUserId
+          const myBeastData = isPlayer1 ? battleInfo.beast1 : battleInfo.beast2
+          const opponentBeastData = isPlayer1 ? battleInfo.beast2 : battleInfo.beast1
+          
+          setMyBeast(myBeastData)
+          setOpponentBeast(opponentBeastData)
+          setMyBeastHp(myBeastData.hp)
+          setOpponentHp(opponentBeastData.hp)
+          
+          // Set stake amount from battle record
+          setStakeAmount(battleInfo.bet_amount || 0)
+          setRewardAmount(battleInfo.reward_amount || 0)
+          
+          addToBattleLog(`Battle started! ${myBeastData.name} vs ${opponentBeastData.name}`)
+          
+          // Check if battle is already completed
+          if (battleInfo.status === 'completed') {
+            const didWin = battleInfo.winner_id === currentUserId
+            setBattleOutcome(didWin ? 'victory' : 'defeat')
+            setShowOutcomeAnimation(true)
+            setIsMyTurn(false)
+          }
+        }
+
+        // Get available moves
+        const movesRes = await fetch('/api/moves')
+        const movesData = await movesRes.json()
+        setMoves(movesData.moves || [])
+
+        // Page loaded successfully
+        setIsPageLoading(false)
+
+      } catch (error) {
+        console.error('Error fetching battle data:', error)
+        setIsPageLoading(false)
+      }
+    }
+
+    fetchBattleData()
+  }, [address, battleId, router])
+
+  const addToBattleLog = useCallback((message: string) => {
+    setBattleLog(prev => [...prev, message])
+  }, [])
+
+  const handleMove = useCallback(async (move: Move) => {
+    if (!battle || !userId || !isMyTurn || isExecutingMove || !opponentBeast || !myBeast) return
+
+    setIsExecutingMove(true)
 
     try {
-      const result = await requestRiseTokens(walletAddress, 200)
-      console.log('Reward transferred successfully:', result)
-      setRewardTransferred(true)
-      setBattleLog(prev => [...prev, 'Reward transferred! Check your wallet.'])
+      // Calculate damage
+      const baseDamage = move.damage
+      const attackStat = myBeast.attack
+      const defenseStat = opponentBeast.defense
+      
+      // Damage formula: base_damage * (attack / (attack + defense)) * random(0.85-1.15)
+      const randomMultiplier = 0.85 + Math.random() * 0.3
+      const calculatedDamage = Math.max(
+        1, 
+        Math.floor(baseDamage * (attackStat / (attackStat + defenseStat)) * randomMultiplier)
+      )
+      
+      const newOpponentHp = Math.max(0, opponentHp - calculatedDamage)
+
+      addToBattleLog(
+        `${myBeast.name} used ${move.name}! Dealt ${calculatedDamage} damage!`
+      )
+
+      // Update opponent HP immediately for better UX
+      setOpponentHp(newOpponentHp)
+
+      // Check if battle ended (opponent HP reached 0)
+      if (newOpponentHp === 0) {
+        addToBattleLog(
+          `${myBeast.name} wins! ${opponentBeast.name} has been defeated!`
+        )
+        
+        // Complete the battle via API
+        const completeResponse = await fetch(`/api/battles/${battleId}/complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            winner: 'player',
+            final_player_hp: myBeastHp,
+            final_enemy_hp: newOpponentHp
+          })
+        })
+
+        const completeData = await completeResponse.json()
+        
+        if (completeData.success) {
+          setRewardAmount(completeData.reward || 0)
+          
+          if (completeData.reward > 0) {
+            addToBattleLog(`You earned ${completeData.reward} RISE tokens!`)
+          }
+        }
+        
+        // Show loading state before animation
+        setIsAnimationLoading(true)
+        setIsMyTurn(false)
+        
+        // Small delay for smooth transition
+        setTimeout(() => {
+          setBattleOutcome('victory')
+          setShowOutcomeAnimation(true)
+          setIsAnimationLoading(false)
+        }, 300)
+      } else {
+        // Battle continues - opponent's turn
+        setIsMyTurn(false)
+        addToBattleLog("Opponent's turn...")
+        
+        setTimeout(async () => {
+          // AI selects a random move
+          const aiMove = moves[Math.floor(Math.random() * Math.min(moves.length, 6))]
+          
+          if (aiMove) {
+            const aiAttackStat = opponentBeast.attack
+            const aiDefenseStat = myBeast.defense
+            const aiRandomMultiplier = 0.85 + Math.random() * 0.3
+            const aiDamage = Math.max(
+              1,
+              Math.floor(aiMove.damage * (aiAttackStat / (aiAttackStat + aiDefenseStat)) * aiRandomMultiplier)
+            )
+            
+            const newPlayerHp = Math.max(0, myBeastHp - aiDamage)
+            
+            addToBattleLog(
+              `${opponentBeast.name} used ${aiMove.name}! Dealt ${aiDamage} damage!`
+            )
+            
+            setMyBeastHp(newPlayerHp)
+            
+            // Check if player lost
+            if (newPlayerHp === 0) {
+              addToBattleLog(
+                `${opponentBeast.name} wins! ${myBeast.name} has been defeated!`
+              )
+              
+              // Complete the battle via API
+              await fetch(`/api/battles/${battleId}/complete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  winner: 'enemy',
+                  final_player_hp: newPlayerHp,
+                  final_enemy_hp: opponentHp
+                })
+              })
+              
+              // Show loading state before animation
+              setIsAnimationLoading(true)
+              
+              setTimeout(() => {
+                setBattleOutcome('defeat')
+                setShowOutcomeAnimation(true)
+                setIsAnimationLoading(false)
+              }, 300)
+            } else {
+              // Player's turn again
+              setIsMyTurn(true)
+              addToBattleLog("Your turn!")
+            }
+          }
+        }, 2000) // 2 second delay for AI move
+      }
+
     } catch (error) {
-      console.error('Failed to transfer reward:', error)
-      if (error instanceof RiseTransferError) {
-        setRewardError(error.message)
-      } else {
-        setRewardError('Failed to transfer reward. Please contact support.')
-      }
-      setBattleLog(prev => [...prev, 'Reward transfer failed. Please contact support.'])
+      console.error('Error executing move:', error)
+      addToBattleLog('Error executing move. Please try again.')
+      setIsMyTurn(true)
     } finally {
-      setIsTransferringReward(false)
+      setIsExecutingMove(false)
     }
-  }
+  }, [battle, userId, isMyTurn, isExecutingMove, myBeast, opponentBeast, opponentHp, myBeastHp, battleId, addToBattleLog, moves])
 
-  const handleMove = (move: typeof mockMoves[0]) => {
-    if (!isPlayerTurn || gameOver) return
+  // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
+  const isCompleted = useMemo(() => battle?.status === 'completed', [battle?.status])
+  const didIWin = useMemo(() => battle?.winner_id === userId, [battle?.winner_id, userId])
+  
+  // Memoize available moves to prevent re-renders
+  const availableMoves = useMemo(() => moves.slice(0, 6), [moves])
 
-    let newPlayerHp = playerHp
-    let newEnemyHp = enemyHp
-    let logMessage = ''
-
-    // Player's turn
-    if (move.type === 'attack') {
-      const damage = Math.max(move.damage - mockEnemyBeast.defense, 5)
-      newEnemyHp = Math.max(enemyHp - damage, 0)
-      logMessage = `${mockPlayerBeast.name} used ${move.name}! Dealt ${damage} damage!`
-    } else if (move.type === 'heal') {
-      const heal = Math.abs(move.damage)
-      newPlayerHp = Math.min(playerHp + heal, mockPlayerBeast.maxHp)
-      logMessage = `${mockPlayerBeast.name} used ${move.name}! Restored ${heal} HP!`
-    } else if (move.type === 'defense') {
-      logMessage = `${mockPlayerBeast.name} is defending!`
-    }
-
-    setPlayerHp(newPlayerHp)
-    setEnemyHp(newEnemyHp)
-    setBattleLog(prev => [...prev, logMessage])
-
-    // Check if enemy is defeated
-    if (newEnemyHp <= 0) {
-      setGameOver(true)
-      setWinner('player')
-      setBattleLog(prev => [...prev, `${mockPlayerBeast.name} wins! You earned 200 $RISE!`])
-      
-      // Send reward to winner
-      sendRewardToWinner()
-      return
-    }
-
-    // Enemy's turn
-    setIsPlayerTurn(false)
-    setTimeout(() => {
-      const enemyMove = mockMoves[Math.floor(Math.random() * 2)] // Enemy picks attack moves
-      const enemyDamage = Math.max(enemyMove.damage - mockPlayerBeast.defense, 5)
-      newPlayerHp = Math.max(newPlayerHp - enemyDamage, 0)
-      
-      setPlayerHp(newPlayerHp)
-      setBattleLog(prev => [...prev, `${mockEnemyBeast.name} used ${enemyMove.name}! Dealt ${enemyDamage} damage!`])
-
-      // Check if player is defeated
-      if (newPlayerHp <= 0) {
-        setGameOver(true)
-        setWinner('enemy')
-        setBattleLog(prev => [...prev, `${mockEnemyBeast.name} wins! You lost 100 $RISE.`])
-      } else {
-        setIsPlayerTurn(true)
-      }
-    }, 1500)
+  if (isPageLoading || !battle || !myBeast || !opponentBeast) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 animate-in fade-in duration-700">
+        <div className="flex flex-col items-center gap-4 bg-card p-8 rounded-lg border-4 border-primary animate-in zoom-in-95 duration-500">
+          <Loader2 className="w-16 h-16 animate-spin text-primary" />
+          <p className="text-lg font-bold font-mono text-primary animate-pulse">Loading Battle Arena...</p>
+          <p className="text-sm text-muted-foreground font-mono">Preparing combatants</p>
+          <div className="flex gap-2 mt-4">
+            <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+            <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+            <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
       <Navbar />
       
-      <main className="container mx-auto px-4 py-8">
-        <div className="max-w-5xl mx-auto">
-          <div className="mb-6 text-center">
-            <h1 className="text-3xl md:text-4xl font-bold text-primary mb-2 text-glow uppercase font-mono">
-              <Swords className="inline-block w-8 h-8 mr-3" />
-              Battle Arena
-            </h1>
-            <Badge variant={isPlayerTurn ? 'default' : 'destructive'} className="text-sm">
-              {gameOver ? 'Battle Ended' : isPlayerTurn ? 'Your Turn' : 'Enemy Turn'}
-            </Badge>
+      <main className="container mx-auto px-4 py-8 animate-in fade-in duration-700">
+        {/* Battle Header */}
+        <div className="text-center mb-6 animate-in slide-in-from-top duration-500">
+          <h1 className="text-3xl md:text-4xl font-bold text-primary mb-2 text-glow">
+            PVP BATTLE ARENA
+          </h1>
+          <div className="flex flex-col items-center gap-2">
+            {isCompleted ? (
+              <Badge variant={didIWin ? 'default' : 'destructive'} className="text-lg px-4 py-2 animate-in zoom-in duration-300">
+                <Trophy className="w-5 h-5 mr-2" />
+                {didIWin ? 'VICTORY!' : 'DEFEAT'}
+              </Badge>
+            ) : (
+              <Badge variant={isMyTurn ? 'default' : 'secondary'} className="text-lg px-4 py-2 transition-all duration-300">
+                {isMyTurn ? 'YOUR TURN' : "OPPONENT'S TURN"}
+              </Badge>
+            )}
+            {stakeAmount > 0 && (
+              <Badge variant="outline" className="text-md px-3 py-1 animate-in slide-in-from-top duration-700">
+                <Coins className="w-4 h-4 mr-2" />
+                Stake: {stakeAmount} $RISE
+              </Badge>
+            )}
           </div>
+        </div>
 
-          <div className="grid md:grid-cols-2 gap-6 mb-6">
-            {/* Player Beast */}
-            <Card className="border-primary">
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-xl">{mockPlayerBeast.name}</CardTitle>
-                    <Badge className="mt-2">{mockPlayerBeast.type}</Badge>
-                  </div>
-                  <Badge variant="secondary">LVL {mockPlayerBeast.level}</Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <HealthBar 
-                  value={playerHp} 
-                  max={mockPlayerBeast.maxHp} 
-                  label="HP" 
-                />
-                <div className="grid grid-cols-2 gap-2 text-sm font-mono">
-                  <div className="flex items-center gap-1">
-                    <Zap className="w-4 h-4 text-accent" />
-                    <span>ATK: {mockPlayerBeast.attack}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Shield className="w-4 h-4 text-blue-500" />
-                    <span>DEF: {mockPlayerBeast.defense}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Enemy Beast */}
-            <Card className="border-destructive">
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-xl">{mockEnemyBeast.name}</CardTitle>
-                    <Badge variant="destructive" className="mt-2">{mockEnemyBeast.type}</Badge>
-                  </div>
-                  <Badge variant="secondary">LVL {mockEnemyBeast.level}</Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <HealthBar 
-                  value={enemyHp} 
-                  max={mockEnemyBeast.maxHp} 
-                  label="HP"
-                  variant="destructive"
-                />
-                <div className="grid grid-cols-2 gap-2 text-sm font-mono">
-                  <div className="flex items-center gap-1">
-                    <Zap className="w-4 h-4 text-accent" />
-                    <span>ATK: {mockEnemyBeast.attack}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Shield className="w-4 h-4 text-blue-500" />
-                    <span>DEF: {mockEnemyBeast.defense}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Battle Log */}
-          <Card className="mb-6">
+        {/* Battle Arena */}
+        <div className="grid md:grid-cols-2 gap-6 mb-6">
+          {/* My Beast */}
+          <Card className="border-primary animate-in slide-in-from-left duration-700">
             <CardHeader>
-              <CardTitle className="text-lg">Battle Log</CardTitle>
+              <div className="flex justify-between items-start">
+                <div>
+                  <CardTitle className="text-2xl">{myBeast.name}</CardTitle>
+                  <Badge className="mt-2">{myBeast.traits?.type || 'Unknown'}</Badge>
+                </div>
+                <Badge variant="secondary">LVL {myBeast.level}</Badge>
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="bg-background border-4 border-input rounded-sm p-4 h-32 overflow-y-auto font-mono text-sm space-y-1">
-                {battleLog.map((log, index) => (
-                  <div key={index} className="text-foreground/80">
-                    {'> '}{log}
-                  </div>
-                ))}
+            <CardContent className="space-y-4">
+              <div className="text-6xl text-center">🔥</div>
+              <HealthBar value={myBeastHp} max={myBeast.max_hp} label="HP" />
+              <div className="grid grid-cols-2 gap-2 text-sm font-mono">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-accent" />
+                  <span>ATK: {myBeast.attack}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-blue-500" />
+                  <span>DEF: {myBeast.defense}</span>
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Moves */}
-          {!gameOver && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Your Moves</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {mockMoves.map((move) => {
-                    const Icon = move.icon
-                    return (
-                      <Button
-                        key={move.id}
-                        variant={move.type === 'attack' ? 'default' : move.type === 'heal' ? 'secondary' : 'outline'}
-                        className="h-auto py-4 flex-col gap-2"
-                        disabled={!isPlayerTurn}
-                        onClick={() => handleMove(move)}
-                      >
-                        <Icon className="w-6 h-6" />
-                        <span className="text-xs">{move.name}</span>
-                        {move.damage > 0 && (
-                          <Badge variant="destructive" className="text-xs">
-                            {move.damage} DMG
-                          </Badge>
-                        )}
-                        {move.damage < 0 && (
-                          <Badge variant="default" className="text-xs">
-                            +{Math.abs(move.damage)} HP
-                          </Badge>
-                        )}
-                      </Button>
-                    )
-                  })}
+          {/* Opponent Beast */}
+          <Card className="border-destructive animate-in slide-in-from-right duration-700">
+            <CardHeader>
+              <div className="flex justify-between items-start">
+                <div>
+                  <CardTitle className="text-2xl">{opponentBeast.name}</CardTitle>
+                  <Badge variant="destructive" className="mt-2">Opponent</Badge>
                 </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Game Over */}
-          {gameOver && (
-            <Card className={winner === 'player' ? 'border-primary' : 'border-destructive'}>
-              <CardContent className="text-center py-8">
-                <Sparkles className="w-16 h-16 mx-auto mb-4 text-primary" />
-                <h2 className="text-3xl font-bold mb-4 font-mono uppercase">
-                  {winner === 'player' ? 'Victory!' : 'Defeat!'}
-                </h2>
-                
-                {winner === 'player' && (
-                  <div className="space-y-4 mb-6">
-                    <p className="text-lg font-mono">
-                      You won 200 $RISE tokens!
-                    </p>
-                    
-                    {isTransferringReward && (
-                      <div className="p-4 bg-blue-500/10 border-2 border-blue-500 text-blue-500 text-sm font-mono">
-                        Transferring reward to your wallet...
-                      </div>
-                    )}
-                    
-                    {rewardTransferred && (
-                      <div className="p-4 bg-green-500/10 border-2 border-green-500 text-green-500 text-sm font-mono">
-                        ✅ Reward transferred successfully! Check your wallet.
-                      </div>
-                    )}
-                    
-                    {rewardError && (
-                      <div className="p-4 bg-destructive/10 border-2 border-destructive text-destructive text-sm font-mono">
-                        ❌ {rewardError}
-                      </div>
-                    )}
-                  </div>
-                )}
-                
-                {winner === 'enemy' && (
-                  <p className="text-lg mb-6 font-mono">
-                    You lost 100 $RISE tokens.
-                  </p>
-                )}
-                
-                <Button
-                  size="lg"
-                  onClick={() => router.push('/battle')}
-                  disabled={isTransferringReward}
-                >
-                  Return to Battle Menu
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+                <Badge variant="secondary">LVL {opponentBeast.level}</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="text-6xl text-center">⚡</div>
+              <HealthBar value={opponentHp} max={opponentBeast.max_hp} label="HP" />
+              <div className="grid grid-cols-2 gap-2 text-sm font-mono">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-accent" />
+                  <span>ATK: {opponentBeast.attack}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-blue-500" />
+                  <span>DEF: {opponentBeast.defense}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
+
+        {/* Moves Selection */}
+        {!isCompleted && isMyTurn && (
+          <Card className="mb-6 animate-in slide-in-from-bottom duration-500">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5" />
+                Select Your Move
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+                {availableMoves.map((move) => (
+                  <Button
+                    key={move.id}
+                    variant="outline"
+                    className="h-auto flex-col items-start p-3 sm:p-4 min-h-[88px] sm:min-h-[120px] min-w-full touch-manipulation transition-all duration-200 hover:scale-105 active:scale-95"
+                    onClick={() => handleMove(move)}
+                    disabled={isExecutingMove}
+                  >
+                    <div className="font-bold mb-1 text-sm sm:text-base w-full text-left">{move.name}</div>
+                    <Badge variant="secondary" className="mb-2 text-xs">{move.type}</Badge>
+                    <div className="text-xs sm:text-sm text-muted-foreground line-clamp-2 w-full text-left">{move.description}</div>
+                    <div className="text-sm sm:text-base font-bold text-accent mt-2 w-full text-left">
+                      {move.damage > 0 ? `${move.damage} DMG` : 'HEAL'}
+                    </div>
+                  </Button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Battle Log */}
+        <Card className="animate-in slide-in-from-bottom duration-700">
+          <CardHeader>
+            <CardTitle>Battle Log</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-64 overflow-y-auto font-mono text-sm">
+              {battleLog.map((log, index) => (
+                <div key={index} className="text-muted-foreground">
+                  <span className="text-primary">[Turn {Math.floor(index / 2) + 1}]</span> {log}
+                </div>
+              ))}
+              {battleLog.length === 0 && (
+                <div className="text-center text-muted-foreground py-8">
+                  Waiting for battle to begin...
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </main>
+
+      
+      {/* Animation Loading State */}
+      {isAnimationLoading && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-md animate-in fade-in duration-500">
+          <div className="flex flex-col items-center gap-4 bg-card p-8 rounded-lg border-4 border-primary animate-in zoom-in-95 duration-500">
+            <Loader2 className="w-16 h-16 animate-spin text-primary" />
+            <p className="text-lg font-bold font-mono text-primary animate-pulse">Battle Complete!</p>
+            <p className="text-sm text-muted-foreground font-mono">Preparing results...</p>
+            <div className="flex gap-2 mt-2">
+              <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+              <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+              <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Outcome Animation */}
+      {battleOutcome && (
+        <OutcomeAnimation
+          outcome={battleOutcome}
+          visible={showOutcomeAnimation}
+          rewardAmount={rewardAmount}
+          stakeAmount={stakeAmount}
+          onComplete={() => {
+            // Animation completed, user can click button to return
+          }}
+        />
+      )}
     </div>
   )
 }
