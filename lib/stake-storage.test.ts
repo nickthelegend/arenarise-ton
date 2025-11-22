@@ -75,6 +75,95 @@ describe('Stake Storage - Property-Based Tests', () => {
     )
   })
 
+  it('should store and retrieve transaction hash correctly', () => {
+    fc.assert(
+      fc.property(
+        fc.record({
+          amount: fc.integer({ min: 10, max: 10000 }),
+          battleId: fc.uuid(),
+          timestamp: fc.constant(Date.now()),
+          transactionHash: fc.string({ minLength: 64, maxLength: 64 })
+        }),
+        (stakeData: StakeData) => {
+          // Store stake data with transaction hash
+          setStakeData(stakeData)
+
+          // Retrieve it
+          const retrieved = getStakeData()
+
+          // Should include transaction hash
+          expect(retrieved).not.toBeNull()
+          expect(retrieved?.transactionHash).toBe(stakeData.transactionHash)
+
+          // Clean up
+          clearStakeData()
+        }
+      ),
+      { numRuns: 100 }
+    )
+  })
+
+  it('should store and retrieve status correctly', () => {
+    fc.assert(
+      fc.property(
+        fc.record({
+          amount: fc.integer({ min: 10, max: 10000 }),
+          battleId: fc.uuid(),
+          timestamp: fc.constant(Date.now()),
+          status: fc.constantFrom('pending' as const, 'completed' as const, 'failed' as const)
+        }),
+        (stakeData: StakeData) => {
+          // Store stake data with status
+          setStakeData(stakeData)
+
+          // Retrieve it
+          const retrieved = getStakeData()
+
+          // Should include status
+          expect(retrieved).not.toBeNull()
+          expect(retrieved?.status).toBe(stakeData.status)
+
+          // Clean up
+          clearStakeData()
+        }
+      ),
+      { numRuns: 100 }
+    )
+  })
+
+  it('should store and retrieve complete stake data with all fields', () => {
+    fc.assert(
+      fc.property(
+        fc.record({
+          amount: fc.integer({ min: 10, max: 10000 }),
+          battleId: fc.uuid(),
+          timestamp: fc.constant(Date.now()),
+          transactionHash: fc.string({ minLength: 64, maxLength: 64 }),
+          status: fc.constantFrom('pending' as const, 'completed' as const, 'failed' as const)
+        }),
+        (stakeData: StakeData) => {
+          // Store complete stake data
+          setStakeData(stakeData)
+
+          // Retrieve it
+          const retrieved = getStakeData()
+
+          // Should match all fields
+          expect(retrieved).not.toBeNull()
+          expect(retrieved?.amount).toBe(stakeData.amount)
+          expect(retrieved?.battleId).toBe(stakeData.battleId)
+          expect(retrieved?.timestamp).toBe(stakeData.timestamp)
+          expect(retrieved?.transactionHash).toBe(stakeData.transactionHash)
+          expect(retrieved?.status).toBe(stakeData.status)
+
+          // Clean up
+          clearStakeData()
+        }
+      ),
+      { numRuns: 100 }
+    )
+  })
+
   it('should validate stake data correctly for matching battle IDs', () => {
     fc.assert(
       fc.property(

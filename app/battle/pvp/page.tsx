@@ -101,6 +101,9 @@ function PVPBattlePageContent() {
 
     setIsSearching(true)
 
+    // Add a small delay for smooth transition
+    await new Promise(resolve => setTimeout(resolve, 300))
+
     try {
       // Find another user with beasts (matchmaking)
       // First try to find beasts from other users
@@ -204,12 +207,13 @@ function PVPBattlePageContent() {
             ) : (
               <>
                 <div className="grid md:grid-cols-2 gap-4 mb-6">
-                  {myBeasts.map((beast) => (
+                  {myBeasts.map((beast, index) => (
                     <Card
                       key={beast.id}
-                      className={`cursor-pointer transition-all hover:scale-105 ${
-                        selectedBeast?.id === beast.id ? 'ring-4 ring-primary' : ''
+                      className={`cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg active:scale-95 animate-in slide-in-from-bottom ${
+                        selectedBeast?.id === beast.id ? 'ring-4 ring-primary shadow-primary/50' : ''
                       }`}
+                      style={{ animationDelay: `${index * 100}ms` }}
                       onClick={() => setSelectedBeast(beast)}
                     >
                       <CardHeader>
@@ -255,7 +259,7 @@ function PVPBattlePageContent() {
                     size="lg"
                     disabled={!selectedBeast || isSearching}
                     onClick={handleFindMatch}
-                    className="min-w-64"
+                    className="min-w-64 transition-all duration-300 hover:scale-105 active:scale-95"
                   >
                     {isSearching ? (
                       <>
@@ -269,11 +273,43 @@ function PVPBattlePageContent() {
                       </>
                     )}
                   </Button>
+                  {!selectedBeast && (
+                    <p className="text-sm text-muted-foreground mt-3 font-mono animate-in fade-in duration-500">
+                      Select a beast to begin matchmaking
+                    </p>
+                  )}
                 </div>
               </>
             )}
           </CardContent>
         </Card>
+
+        {/* Searching Overlay */}
+        {isSearching && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md animate-in fade-in duration-500">
+            <div className="flex flex-col items-center gap-4 bg-card p-8 rounded-lg border-4 border-primary animate-in zoom-in-95 duration-500 max-w-md mx-4">
+              <Loader2 className="w-16 h-16 animate-spin text-primary" />
+              <h3 className="text-xl font-bold font-mono text-primary animate-pulse">Finding Opponent...</h3>
+              <p className="text-sm text-muted-foreground font-mono text-center">
+                Searching for a worthy challenger
+              </p>
+              <div className="flex gap-2 mt-2">
+                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+              </div>
+              {selectedBeast && (
+                <div className="bg-muted p-4 rounded-sm border-2 border-primary/20 w-full mt-4 animate-in slide-in-from-bottom duration-700">
+                  <div className="text-center">
+                    <p className="text-xs text-muted-foreground font-mono mb-2">Your Beast</p>
+                    <p className="font-bold font-mono">{selectedBeast.name}</p>
+                    <Badge variant="secondary" className="mt-2">LVL {selectedBeast.level}</Badge>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   )

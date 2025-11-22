@@ -333,9 +333,10 @@ export default function BattlePage() {
       return (
         <Card
           key={beast.id}
-          className={`cursor-pointer transition-all hover:scale-105 ${
-            selectedBeast === beast.id ? 'ring-4 ring-primary' : ''
+          className={`cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg active:scale-95 animate-in slide-in-from-left ${
+            selectedBeast === beast.id ? 'ring-4 ring-primary shadow-primary/50' : ''
           }`}
+          style={{ animationDelay: `${beasts.indexOf(beast) * 100}ms` }}
           onClick={() => handleBeastSelection(beast.id)}
         >
           <CardHeader>
@@ -383,7 +384,7 @@ export default function BattlePage() {
     }
 
     return (
-      <Card className="ring-2 ring-destructive">
+      <Card className="ring-2 ring-destructive animate-in slide-in-from-right duration-700">
         <CardHeader>
           <div className="flex justify-between items-start">
             <div>
@@ -519,7 +520,7 @@ export default function BattlePage() {
                       isStaking || 
                       isCreatingBattle
                     }
-                    className="w-full"
+                    className="w-full transition-all duration-300 hover:scale-105 active:scale-95"
                     onClick={handleStake}
                   >
                     <Coins className="w-5 h-5 mr-2" />
@@ -542,7 +543,7 @@ export default function BattlePage() {
                 <Button
                   size="lg"
                   disabled={!selectedBeast || !autoMatchedEnemy || !userId || isCreatingBattle || isStaking}
-                  className="w-full md:w-auto min-w-64"
+                  className="w-full md:w-auto min-w-64 transition-all duration-300 hover:scale-105 active:scale-95"
                   onClick={handleStartPVEBattle}
                   variant="outline"
                 >
@@ -600,7 +601,7 @@ export default function BattlePage() {
                     <Button
                       size="lg"
                       disabled={!selectedBeast}
-                      className="w-full"
+                      className="w-full transition-all duration-300 hover:scale-105 active:scale-95"
                       onClick={() => router.push(`/battle/pvp?beastId=${selectedBeast}`)}
                     >
                       <Users className="w-5 h-5 mr-2" />
@@ -617,6 +618,39 @@ export default function BattlePage() {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Battle Creation Loading Overlay */}
+        {(isCreatingBattle || isStaking) && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md animate-in fade-in duration-500">
+            <div className="flex flex-col items-center gap-4 bg-card p-8 rounded-lg border-4 border-primary animate-in zoom-in-95 duration-500 max-w-md mx-4">
+              <Swords className="w-16 h-16 text-primary animate-pulse" />
+              <h3 className="text-xl font-bold font-mono text-primary animate-pulse">
+                {isStaking ? 'Processing Stake...' : 'Creating Battle...'}
+              </h3>
+              <p className="text-sm text-muted-foreground font-mono text-center">
+                {isStaking ? 'Confirming your transaction' : 'Preparing the arena'}
+              </p>
+              <div className="flex gap-2 mt-2">
+                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+              </div>
+              {selectedBeast && (
+                <div className="bg-muted p-4 rounded-sm border-2 border-primary/20 w-full mt-4 animate-in slide-in-from-bottom duration-700">
+                  <div className="text-center">
+                    <p className="text-xs text-muted-foreground font-mono mb-2">Your Beast</p>
+                    <p className="font-bold font-mono">
+                      {beasts.find(b => b.id === selectedBeast)?.name || 'Unknown'}
+                    </p>
+                    <Badge variant="secondary" className="mt-2">
+                      LVL {beasts.find(b => b.id === selectedBeast)?.level || 1}
+                    </Badge>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   )

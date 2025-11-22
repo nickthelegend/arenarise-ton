@@ -6,6 +6,8 @@ export interface StakeData {
   amount: number
   battleId: string
   timestamp: number
+  transactionHash?: string
+  status?: 'pending' | 'completed' | 'failed'
 }
 
 const STAKE_STORAGE_KEY = 'battle_stake'

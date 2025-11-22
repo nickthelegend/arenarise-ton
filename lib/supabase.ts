@@ -89,3 +89,14 @@ export interface SwapTransaction {
   created_at: string
   updated_at: string
 }
+
+export interface StakeTransaction {
+  id: string
+  battle_id: string
+  player_id: string
+  amount: number
+  transaction_hash: string
+  status: 'pending' | 'completed' | 'failed'
+  created_at: string
+  updated_at: string
+}

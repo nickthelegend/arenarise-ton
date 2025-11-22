@@ -463,6 +463,13 @@ export default function BattleArenaPage() {
     }
   }, [battle, userId, isMyTurn, isExecutingMove, myBeast, opponentBeast, enemy, opponentHp, myBeastHp, battleId, turnNumber, addToBattleLog, isPVE, moves])
 
+  // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
+  const isCompleted = useMemo(() => battle?.status === 'completed', [battle?.status])
+  const didIWin = useMemo(() => battle?.winner_id === userId, [battle?.winner_id, userId])
+  
+  // Memoize available moves to prevent re-renders
+  const availableMoves = useMemo(() => moves.slice(0, 6), [moves])
+
   if (isPageLoading || !battle || !myBeast || (!opponentBeast && !enemy)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 animate-in fade-in duration-700">
@@ -479,9 +486,6 @@ export default function BattleArenaPage() {
       </div>
     )
   }
-
-  const isCompleted = useMemo(() => battle.status === 'completed', [battle.status])
-  const didIWin = useMemo(() => battle.winner_id === userId, [battle.winner_id, userId])
 
   return (
     <div className="min-h-screen">
@@ -602,7 +606,7 @@ export default function BattleArenaPage() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-                {useMemo(() => moves.slice(0, 6).map((move) => (
+                {availableMoves.map((move) => (
                   <Button
                     key={move.id}
                     variant="outline"
@@ -617,7 +621,7 @@ export default function BattleArenaPage() {
                       {move.damage > 0 ? `${move.damage} DMG` : 'HEAL'}
                     </div>
                   </Button>
-                )), [moves, handleMove, isExecutingMove])}
+                ))}
               </div>
             </CardContent>
           </Card>
@@ -667,6 +671,7 @@ export default function BattleArenaPage() {
           outcome={battleOutcome}
           visible={showOutcomeAnimation}
           rewardAmount={rewardAmount}
+          stakeAmount={stakeAmount}
           onComplete={() => {
             // Animation completed, user can click button to return
           }}
