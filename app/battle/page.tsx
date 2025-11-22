@@ -40,8 +40,10 @@ export default function BattlePage() {
   const [enemies, setEnemies] = useState<Enemy[]>([])
   const [isLoadingBeasts, setIsLoadingBeasts] = useState(true)
   const [isLoadingEnemies, setIsLoadingEnemies] = useState(true)
+  const [isCreatingBattle, setIsCreatingBattle] = useState(false)
+  const [battleError, setBattleError] = useState<string | null>(null)
   const router = useRouter() // Added router for navigation to battle start
-  const { address, isConnected } = useWallet()
+  const { address, userId, isConnected } = useWallet()
 
   // Fetch user's beasts
   useEffect(() => {
@@ -96,6 +98,47 @@ export default function BattlePage() {
 
     fetchEnemies()
   }, [])
+
+  // Create PVE battle and navigate to arena
+  const handleStartPVEBattle = async () => {
+    if (!selectedBeast || !selectedEnemy || !userId) {
+      setBattleError('Please select a beast and enemy')
+      return
+    }
+
+    try {
+      setIsCreatingBattle(true)
+      setBattleError(null)
+
+      const response = await fetch('/api/battles/pve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          player_id: userId,
+          beast_id: selectedBeast,
+          enemy_id: selectedEnemy,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create battle')
+      }
+
+      if (data.success && data.battle) {
+        // Navigate to battle arena with the battle ID
+        router.push(`/battle/arena/${data.battle.id}`)
+      } else {
+        throw new Error('Invalid response from server')
+      }
+    } catch (error: any) {
+      console.error('Error creating PVE battle:', error)
+      setBattleError(error.message || 'Failed to create battle')
+    } finally {
+      setIsCreatingBattle(false)
+    }
+  }
 
   // Render beast selection list
   const renderBeastList = () => {
@@ -279,16 +322,33 @@ export default function BattlePage() {
               </div>
             </div>
 
-            <div className="mt-8 text-center">
+            <div className="mt-8 text-center space-y-4">
+              {battleError && (
+                <Card className="border-destructive">
+                  <CardContent className="pt-6">
+                    <p className="text-destructive font-mono text-sm">{battleError}</p>
+                  </CardContent>
+                </Card>
+              )}
               <Button
                 size="lg"
-                disabled={!selectedBeast || !selectedEnemy}
+                disabled={!selectedBeast || !selectedEnemy || !userId || isCreatingBattle}
                 className="w-full md:w-auto min-w-64"
-                onClick={() => router.push('/battle/1/start')}
+                onClick={handleStartPVEBattle}
               >
                 <Swords className="w-5 h-5 mr-2" />
-                Start Battle
+                {isCreatingBattle ? 'Creating Battle...' : 'Start Battle'}
               </Button>
+              {!userId && isConnected && (
+                <p className="text-sm text-muted-foreground font-mono">
+                  Loading user data...
+                </p>
+              )}
+              {!isConnected && (
+                <p className="text-sm text-muted-foreground font-mono">
+                  Connect your wallet to start a battle
+                </p>
+              )}
             </div>
           </TabsContent>
 

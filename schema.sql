@@ -46,6 +46,10 @@ CREATE TABLE IF NOT EXISTS battles (
   status VARCHAR(50) DEFAULT 'waiting',
   current_turn UUID REFERENCES users(id),
   bet_amount DECIMAL(10, 2) DEFAULT 0,
+  battle_type TEXT DEFAULT 'pvp' CHECK (battle_type IN ('pvp', 'pve')),
+  enemy_id INTEGER,
+  reward_amount DECIMAL(18, 9) DEFAULT 0,
+  reward_status TEXT CHECK (reward_status IN ('none', 'pending', 'completed', 'failed')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -85,10 +89,28 @@ CREATE TABLE IF NOT EXISTS swap_transactions (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Coin flips table
+CREATE TABLE IF NOT EXISTS coin_flips (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  wallet_address TEXT NOT NULL,
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  bet_amount DECIMAL(18, 9) NOT NULL,
+  choice TEXT NOT NULL CHECK (choice IN ('heads', 'tails')),
+  result TEXT NOT NULL CHECK (result IN ('heads', 'tails')),
+  won BOOLEAN NOT NULL,
+  payout DECIMAL(18, 9) DEFAULT 0,
+  transaction_hash TEXT NOT NULL,
+  rise_transfer_hash TEXT,
+  status TEXT NOT NULL CHECK (status IN ('pending', 'completed', 'failed')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_battles_status ON battles(status);
 CREATE INDEX IF NOT EXISTS idx_battles_player1 ON battles(player1_id);
 CREATE INDEX IF NOT EXISTS idx_battles_player2 ON battles(player2_id);
+CREATE INDEX IF NOT EXISTS idx_battles_type ON battles(battle_type);
+CREATE INDEX IF NOT EXISTS idx_battles_player_history ON battles(player1_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_battle_moves_battle ON battle_moves(battle_id);
 CREATE INDEX IF NOT EXISTS idx_bets_battle ON bets(battle_id);
 CREATE INDEX IF NOT EXISTS idx_bets_user ON bets(user_id);
@@ -97,6 +119,9 @@ CREATE INDEX IF NOT EXISTS idx_beast_moves_beast ON beast_moves(beast_id);
 CREATE INDEX IF NOT EXISTS idx_beast_moves_move ON beast_moves(move_id);
 CREATE INDEX IF NOT EXISTS idx_swap_wallet ON swap_transactions(wallet_address);
 CREATE INDEX IF NOT EXISTS idx_swap_created ON swap_transactions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_coin_flips_wallet ON coin_flips(wallet_address);
+CREATE INDEX IF NOT EXISTS idx_coin_flips_created ON coin_flips(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_coin_flips_status ON coin_flips(status);
 
 -- Insert predefined moves
 INSERT INTO moves (name, damage, type, description) VALUES

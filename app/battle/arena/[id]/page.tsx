@@ -40,6 +40,17 @@ interface Beast {
   traits: any
 }
 
+interface Enemy {
+  id: number
+  name: string
+  level: number
+  hp: number
+  maxHp: number
+  attack: number
+  defense: number
+  reward: number
+}
+
 interface Move {
   id: number
   name: string
@@ -51,12 +62,16 @@ interface Move {
 interface Battle {
   id: string
   player1_id: string
-  player2_id: string
+  player2_id: string | null
   beast1: Beast
-  beast2: Beast
+  beast2: Beast | null
   current_turn: string
   status: string
   winner_id: string | null
+  battle_type: 'pvp' | 'pve'
+  enemy_id: number | null
+  reward_amount: number
+  reward_status: string
 }
 
 interface BattleMove {
@@ -81,8 +96,9 @@ export default function BattleArenaPage() {
   const [battle, setBattle] = useState<Battle | null>(null)
   const [myBeast, setMyBeast] = useState<Beast | null>(null)
   const [opponentBeast, setOpponentBeast] = useState<Beast | null>(null)
+  const [enemy, setEnemy] = useState<Enemy | null>(null)
   const [myBeastHp, setMyBeastHp] = useState<number>(0)
-  const [opponentBeastHp, setOpponentBeastHp] = useState<number>(0)
+  const [opponentHp, setOpponentHp] = useState<number>(0)
   const [moves, setMoves] = useState<Move[]>([])
   const [battleMoves, setBattleMoves] = useState<BattleMove[]>([])
   const [isMyTurn, setIsMyTurn] = useState(false)
@@ -97,6 +113,8 @@ export default function BattleArenaPage() {
   const [isPageLoading, setIsPageLoading] = useState(true)
   const [isAnimationLoading, setIsAnimationLoading] = useState(false)
   const [isPageTransitioning, setIsPageTransitioning] = useState(false)
+  const [isPVE, setIsPVE] = useState(false)
+  const [rewardAmount, setRewardAmount] = useState<number>(0)
 
   // Handle viewport changes for dynamic layout adjustment
   useEffect(() => {
@@ -168,19 +186,41 @@ export default function BattleArenaPage() {
         if (battleData.battle) {
           const battleInfo = battleData.battle
           setBattle(battleInfo)
+          
+          const isPVEBattle = battleInfo.battle_type === 'pve'
+          setIsPVE(isPVEBattle)
+          setRewardAmount(battleInfo.reward_amount || 0)
 
-          // Determine my beast and opponent's beast
-          const isPlayer1 = battleInfo.player1_id === currentUserId
-          const myBeastData = isPlayer1 ? battleInfo.beast1 : battleInfo.beast2
-          const oppBeastData = isPlayer1 ? battleInfo.beast2 : battleInfo.beast1
+          if (isPVEBattle) {
+            // PVE battle - player vs enemy
+            const myBeastData = battleInfo.beast1
+            setMyBeast(myBeastData)
+            setMyBeastHp(myBeastData.hp)
+            
+            // Fetch enemy data
+            const enemiesRes = await fetch('/api/enemies')
+            const enemiesData = await enemiesRes.json()
+            const enemyData = enemiesData.enemies?.find((e: Enemy) => e.id === battleInfo.enemy_id)
+            
+            if (enemyData) {
+              setEnemy(enemyData)
+              setOpponentHp(enemyData.hp)
+              addToBattleLog(`Battle started! ${myBeastData.name} vs ${enemyData.name}`)
+            }
+          } else {
+            // PVP battle - player vs player
+            const isPlayer1 = battleInfo.player1_id === currentUserId
+            const myBeastData = isPlayer1 ? battleInfo.beast1 : battleInfo.beast2
+            const oppBeastData = isPlayer1 ? battleInfo.beast2 : battleInfo.beast1
 
-          setMyBeast(myBeastData)
-          setOpponentBeast(oppBeastData)
-          setMyBeastHp(myBeastData.hp)
-          setOpponentBeastHp(oppBeastData.hp)
+            setMyBeast(myBeastData)
+            setOpponentBeast(oppBeastData)
+            setMyBeastHp(myBeastData.hp)
+            setOpponentHp(oppBeastData.hp)
+            addToBattleLog(`Battle started! ${myBeastData.name} vs ${oppBeastData.name}`)
+          }
+          
           setIsMyTurn(battleInfo.current_turn === currentUserId)
-
-          addToBattleLog(`Battle started! ${myBeastData.name} vs ${oppBeastData.name}`)
         }
 
         // Get available moves
@@ -233,7 +273,7 @@ export default function BattleArenaPage() {
           // Update HP based on who made the move
           if (newMove.player_id === userId) {
             // My move - opponent took damage
-            setOpponentBeastHp(newMove.target_hp_remaining)
+            setOpponentHp(newMove.target_hp_remaining)
           } else {
             // Opponent's move - I took damage
             setMyBeastHp(newMove.target_hp_remaining)
@@ -288,7 +328,7 @@ export default function BattleArenaPage() {
       // Calculate damage
       const baseDamage = move.damage
       const attackStat = myBeast?.attack || 50
-      const defenseStat = opponentBeast?.defense || 30
+      const defenseStat = isPVE ? (enemy?.defense || 30) : (opponentBeast?.defense || 30)
       
       // Damage formula: base_damage * (attack / (attack + defense)) * random(0.85-1.15)
       const randomMultiplier = 0.85 + Math.random() * 0.3
@@ -297,32 +337,44 @@ export default function BattleArenaPage() {
         Math.floor(baseDamage * (attackStat / (attackStat + defenseStat)) * randomMultiplier)
       )
       
-      const newOpponentHp = Math.max(0, opponentBeastHp - calculatedDamage)
+      const newOpponentHp = Math.max(0, opponentHp - calculatedDamage)
+      const opponentName = isPVE ? enemy?.name : opponentBeast?.name
 
       addToBattleLog(
         `${myBeast?.name} used ${move.name}! Dealt ${calculatedDamage} damage!`
       )
 
-      // Record the move
-      const response = await fetch('/api/battles/moves', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          battle_id: battleId,
-          player_id: userId,
-          move_id: move.id,
-          turn_number: turnNumber,
-          damage_dealt: calculatedDamage,
-          target_hp_remaining: newOpponentHp
-        })
-      })
+      // Update opponent HP immediately for better UX
+      setOpponentHp(newOpponentHp)
 
-      const data = await response.json()
-
-      if (data.battle_ended) {
+      // Check if battle ended (opponent HP reached 0)
+      if (newOpponentHp === 0) {
         addToBattleLog(
-          `${myBeast?.name} wins! ${opponentBeast?.name} has been defeated!`
+          `${myBeast?.name} wins! ${opponentName} has been defeated!`
         )
+        
+        // Complete the battle via API
+        if (isPVE) {
+          const completeResponse = await fetch(`/api/battles/${battleId}/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              winner: 'player',
+              final_player_hp: myBeastHp,
+              final_enemy_hp: newOpponentHp
+            })
+          })
+
+          const completeData = await completeResponse.json()
+          
+          if (completeData.success) {
+            setRewardAmount(completeData.reward || 0)
+            
+            if (completeData.reward > 0) {
+              addToBattleLog(`You earned ${completeData.reward} RISE tokens!`)
+            }
+          }
+        }
         
         // Show loading state before animation
         setIsAnimationLoading(true)
@@ -337,8 +389,70 @@ export default function BattleArenaPage() {
           clearStakeData()
         }, 300)
       } else {
+        // Battle continues - switch turn
         setIsMyTurn(false)
-        addToBattleLog("Opponent's turn...")
+        
+        if (isPVE) {
+          // Execute AI enemy move after a delay
+          addToBattleLog("Enemy's turn...")
+          
+          setTimeout(async () => {
+            // AI selects a random move
+            const aiMove = moves[Math.floor(Math.random() * Math.min(moves.length, 6))]
+            
+            if (aiMove && enemy) {
+              const aiAttackStat = enemy.attack
+              const aiDefenseStat = myBeast?.defense || 30
+              const aiRandomMultiplier = 0.85 + Math.random() * 0.3
+              const aiDamage = Math.max(
+                1,
+                Math.floor(aiMove.damage * (aiAttackStat / (aiAttackStat + aiDefenseStat)) * aiRandomMultiplier)
+              )
+              
+              const newPlayerHp = Math.max(0, myBeastHp - aiDamage)
+              
+              addToBattleLog(
+                `${enemy.name} used ${aiMove.name}! Dealt ${aiDamage} damage!`
+              )
+              
+              setMyBeastHp(newPlayerHp)
+              
+              // Check if player lost
+              if (newPlayerHp === 0) {
+                addToBattleLog(
+                  `${enemy.name} wins! ${myBeast?.name} has been defeated!`
+                )
+                
+                // Complete the battle via API
+                const completeResponse = await fetch(`/api/battles/${battleId}/complete`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    winner: 'enemy',
+                    final_player_hp: newPlayerHp,
+                    final_enemy_hp: opponentHp
+                  })
+                })
+                
+                // Show loading state before animation
+                setIsAnimationLoading(true)
+                
+                setTimeout(() => {
+                  setBattleOutcome('defeat')
+                  setShowOutcomeAnimation(true)
+                  setIsAnimationLoading(false)
+                  clearStakeData()
+                }, 300)
+              } else {
+                // Player's turn again
+                setIsMyTurn(true)
+                addToBattleLog("Your turn!")
+              }
+            }
+          }, 2000) // 2 second delay for AI move
+        } else {
+          addToBattleLog("Opponent's turn...")
+        }
       }
 
     } catch (error) {
@@ -347,9 +461,9 @@ export default function BattleArenaPage() {
     } finally {
       setIsExecutingMove(false)
     }
-  }, [battle, userId, isMyTurn, isExecutingMove, myBeast, opponentBeast, opponentBeastHp, battleId, turnNumber, addToBattleLog])
+  }, [battle, userId, isMyTurn, isExecutingMove, myBeast, opponentBeast, enemy, opponentHp, myBeastHp, battleId, turnNumber, addToBattleLog, isPVE, moves])
 
-  if (isPageLoading || !battle || !myBeast || !opponentBeast) {
+  if (isPageLoading || !battle || !myBeast || (!opponentBeast && !enemy)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 animate-in fade-in duration-700">
         <div className="flex flex-col items-center gap-4 bg-card p-8 rounded-lg border-4 border-primary animate-in zoom-in-95 duration-500">
@@ -428,30 +542,51 @@ export default function BattleArenaPage() {
             </CardContent>
           </Card>
 
-          {/* Opponent Beast */}
+          {/* Opponent Beast or Enemy */}
           <Card className="border-destructive animate-in slide-in-from-right duration-700">
             <CardHeader>
               <div className="flex justify-between items-start">
                 <div>
-                  <CardTitle className="text-2xl">{opponentBeast.name}</CardTitle>
-                  <Badge className="mt-2">{opponentBeast.traits?.type || 'Unknown'}</Badge>
+                  <CardTitle className="text-2xl">
+                    {isPVE ? enemy?.name : opponentBeast?.name}
+                  </CardTitle>
+                  {!isPVE && opponentBeast && (
+                    <Badge className="mt-2">{opponentBeast.traits?.type || 'Unknown'}</Badge>
+                  )}
+                  {isPVE && (
+                    <Badge variant="destructive" className="mt-2">Enemy</Badge>
+                  )}
                 </div>
-                <Badge variant="secondary">LVL {opponentBeast.level}</Badge>
+                <Badge variant="secondary">
+                  LVL {isPVE ? enemy?.level : opponentBeast?.level}
+                </Badge>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="text-6xl text-center">⚡</div>
-              <HealthBar value={opponentBeastHp} max={opponentBeast.max_hp} label="HP" />
+              <HealthBar 
+                value={opponentHp} 
+                max={isPVE ? (enemy?.maxHp || 100) : (opponentBeast?.max_hp || 100)} 
+                label="HP" 
+              />
               <div className="grid grid-cols-2 gap-2 text-sm font-mono">
                 <div className="flex items-center gap-2">
                   <Zap className="w-4 h-4 text-accent" />
-                  <span>ATK: {opponentBeast.attack}</span>
+                  <span>ATK: {isPVE ? enemy?.attack : opponentBeast?.attack}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Shield className="w-4 h-4 text-blue-500" />
-                  <span>DEF: {opponentBeast.defense}</span>
+                  <span>DEF: {isPVE ? enemy?.defense : opponentBeast?.defense}</span>
                 </div>
               </div>
+              {isPVE && enemy && (
+                <div className="pt-2 border-t border-border">
+                  <Badge variant="default" className="w-full justify-center">
+                    <Coins className="w-4 h-4 mr-2" />
+                    Reward: {enemy.reward} RISE
+                  </Badge>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -531,6 +666,7 @@ export default function BattleArenaPage() {
         <OutcomeAnimation
           outcome={battleOutcome}
           visible={showOutcomeAnimation}
+          rewardAmount={rewardAmount}
           onComplete={() => {
             // Animation completed, user can click button to return
           }}

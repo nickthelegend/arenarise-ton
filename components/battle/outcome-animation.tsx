@@ -10,10 +10,11 @@ interface OutcomeAnimationProps {
   outcome: 'victory' | 'defeat';
   onComplete?: () => void;
   visible: boolean;
+  rewardAmount?: number;
 }
 
 // Memoize component to prevent unnecessary re-renders
-const OutcomeAnimationComponent = ({ outcome, onComplete, visible }: OutcomeAnimationProps) => {
+const OutcomeAnimationComponent = ({ outcome, onComplete, visible, rewardAmount }: OutcomeAnimationProps) => {
   const router = useRouter();
   const [show, setShow] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -98,6 +99,16 @@ const OutcomeAnimationComponent = ({ outcome, onComplete, visible }: OutcomeAnim
               <p className="text-xl text-green-300">
                 You have triumphed in battle!
               </p>
+              {rewardAmount && rewardAmount > 0 && (
+                <div className="mt-4 p-4 bg-gradient-to-r from-yellow-500/20 to-green-500/20 border-2 border-yellow-400 rounded-lg animate-in zoom-in duration-500">
+                  <p className="text-2xl font-bold text-yellow-300">
+                    +{rewardAmount} RISE
+                  </p>
+                  <p className="text-sm text-green-200">
+                    Reward earned!
+                  </p>
+                </div>
+              )}
             </div>
           </>
         ) : (

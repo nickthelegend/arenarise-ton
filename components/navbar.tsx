@@ -78,6 +78,13 @@ export function Navbar() {
               BATTLE
             </Link>
             <Link
+              href="/bets"
+              className={`font-bold font-mono transition-colors ${pathname === '/bets' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                }`}
+            >
+              BETS
+            </Link>
+            <Link
               href="/inventory"
               className={`font-bold font-mono transition-colors ${pathname === '/inventory' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                 }`}
@@ -163,6 +170,15 @@ export function Navbar() {
               }`}
           >
             BATTLE
+          </Link>
+          <Link
+            href="/bets"
+            className={`flex-1 text-center py-2 font-bold font-mono text-xs transition-colors border-2 ${pathname === '/bets'
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-card text-muted-foreground border-border hover:border-primary'
+              }`}
+          >
+            BETS
           </Link>
           <Link
             href="/inventory"
