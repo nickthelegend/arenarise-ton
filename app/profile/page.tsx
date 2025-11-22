@@ -43,17 +43,16 @@ export default function ProfilePage() {
       if (!address) return
 
       try {
-        const response = await fetch('/api/users')
+        const response = await fetch(`/api/users?wallet_address=${encodeURIComponent(address)}`)
         if (!response.ok) {
-          console.error('Failed to fetch users')
+          console.error('Failed to fetch user')
           return
         }
 
         const data = await response.json()
-        const user = data.users?.find((u: any) => u.wallet_address === address)
         
-        if (user) {
-          setUserId(user.id)
+        if (data.user) {
+          setUserId(data.user.id)
         }
       } catch (error) {
         console.error('Error fetching user ID:', error)
