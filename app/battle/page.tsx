@@ -3,13 +3,20 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation' // Import useRouter for navigation
 import { useWallet } from '@/components/wallet-provider'
+import { useTonConnectUI } from '@tonconnect/ui-react'
 import { Navbar } from '@/components/navbar'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/8bitcn/card'
 import { Button } from '@/components/8bitcn/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/8bitcn/tabs'
 import { Badge } from '@/components/8bitcn/badge'
 import { HealthBar } from '@/components/8bitcn/health-bar'
-import { Swords, Users, Zap, Shield, Crown } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Swords, Users, Zap, Shield, Crown, Coins } from 'lucide-react'
+import { selectRandomEnemy } from '@/lib/enemy-utils'
+import { sendJettonTransfer } from '@/lib/jetton-transfer'
+import { validateStake } from '@/lib/stake-validation'
+import { PAYMENT_ADDRESS, RISE_JETTON_DECIMALS } from '@/lib/constants'
 
 interface Beast {
   id: number
@@ -35,15 +42,20 @@ interface Enemy {
 
 export default function BattlePage() {
   const [selectedBeast, setSelectedBeast] = useState<number | null>(null)
-  const [selectedEnemy, setSelectedEnemy] = useState<number | null>(null)
+  const [autoMatchedEnemy, setAutoMatchedEnemy] = useState<Enemy | null>(null)
   const [beasts, setBeasts] = useState<Beast[]>([])
   const [enemies, setEnemies] = useState<Enemy[]>([])
   const [isLoadingBeasts, setIsLoadingBeasts] = useState(true)
   const [isLoadingEnemies, setIsLoadingEnemies] = useState(true)
   const [isCreatingBattle, setIsCreatingBattle] = useState(false)
   const [battleError, setBattleError] = useState<string | null>(null)
+  const [stakeAmount, setStakeAmount] = useState<string>('')
+  const [stakeError, setStakeError] = useState<string | null>(null)
+  const [isStaking, setIsStaking] = useState(false)
+  const [jettonWalletAddress, setJettonWalletAddress] = useState<string>('')
   const router = useRouter() // Added router for navigation to battle start
   const { address, userId, isConnected } = useWallet()
+  const [tonConnectUI] = useTonConnectUI()
 
   // Fetch user's beasts
   useEffect(() => {
@@ -99,10 +111,161 @@ export default function BattlePage() {
     fetchEnemies()
   }, [])
 
-  // Create PVE battle and navigate to arena
+  // Fetch jetton wallet address for RISE tokens
+  useEffect(() => {
+    async function fetchJettonWallet() {
+      if (!address) {
+        setJettonWalletAddress('')
+        return
+      }
+
+      try {
+        console.log('Fetching jetton wallet for address:', address)
+        
+        // Fetch the user's RISE jetton wallet address from the API
+        const response = await fetch(`/api/jetton-wallet?owner_address=${address}`)
+        const data = await response.json()
+        
+        if (data.jetton_wallet_address) {
+          console.log('Jetton wallet found:', data.jetton_wallet_address)
+          setJettonWalletAddress(data.jetton_wallet_address)
+        } else {
+          console.error('No jetton wallet found for user:', data.error)
+          setJettonWalletAddress('')
+          setStakeError('No RISE jetton wallet found. You may need to receive RISE tokens first.')
+        }
+      } catch (error) {
+        console.error('Error fetching jetton wallet:', error)
+        setJettonWalletAddress('')
+        setStakeError('Failed to fetch jetton wallet address')
+      }
+    }
+
+    fetchJettonWallet()
+  }, [address])
+
+  // Handle beast selection and automatic enemy assignment
+  const handleBeastSelection = (beastId: number) => {
+    setSelectedBeast(beastId)
+    setBattleError(null)
+    setStakeError(null)
+    
+    // Automatically select a random enemy
+    const randomEnemy = selectRandomEnemy(enemies)
+    if (randomEnemy) {
+      setAutoMatchedEnemy(randomEnemy)
+    } else {
+      setAutoMatchedEnemy(null)
+      setBattleError('No enemies available for battle')
+    }
+  }
+
+  // Handle stake input change
+  const handleStakeAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setStakeAmount(value)
+    setStakeError(null)
+  }
+
+  // Handle stake button click
+  const handleStake = async () => {
+    if (!selectedBeast || !autoMatchedEnemy || !userId || !address) {
+      setStakeError('Please select a beast and connect your wallet')
+      return
+    }
+
+    const amount = parseFloat(stakeAmount)
+    
+    // Validate stake inputs
+    const validation = validateStake({
+      stakeAmount: amount,
+      isWalletConnected: isConnected,
+      jettonWalletAddress: jettonWalletAddress
+    })
+
+    if (!validation.isValid) {
+      setStakeError(validation.error || 'Validation failed')
+      return
+    }
+
+    try {
+      setIsStaking(true)
+      setStakeError(null)
+
+      console.log('Sending jetton transfer with:', {
+        jettonWalletAddress,
+        destinationAddress: PAYMENT_ADDRESS,
+        amount,
+        jettonDecimals: RISE_JETTON_DECIMALS,
+        senderAddress: address
+      })
+
+      // Send jetton transfer
+      await sendJettonTransfer({
+        tonConnectUI,
+        jettonWalletAddress,
+        destinationAddress: PAYMENT_ADDRESS,
+        amount,
+        jettonDecimals: RISE_JETTON_DECIMALS,
+        forwardTonAmount: '0.05',
+        senderAddress: address
+      })
+
+      // After successful transfer, create battle with stake amount
+      await createBattleWithStake(amount)
+    } catch (error: any) {
+      console.error('Error during stake:', error)
+      setStakeError(error.message || 'Failed to stake tokens')
+    } finally {
+      setIsStaking(false)
+    }
+  }
+
+  // Create battle with stake amount
+  const createBattleWithStake = async (stakeAmountValue: number) => {
+    if (!selectedBeast || !autoMatchedEnemy || !userId) {
+      throw new Error('Missing required data for battle creation')
+    }
+
+    try {
+      setIsCreatingBattle(true)
+      setBattleError(null)
+
+      const response = await fetch('/api/battles/pve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          player_id: userId,
+          beast_id: selectedBeast,
+          enemy_id: autoMatchedEnemy.id,
+          stake_amount: stakeAmountValue,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create battle')
+      }
+
+      if (data.success && data.battle) {
+        // Navigate to PVE battle arena with the battle ID
+        router.push(`/battle/pve/${data.battle.id}`)
+      } else {
+        throw new Error('Invalid response from server')
+      }
+    } catch (error: any) {
+      console.error('Error creating battle:', error)
+      throw error
+    } finally {
+      setIsCreatingBattle(false)
+    }
+  }
+
+  // Create PVE battle without stake and navigate to arena
   const handleStartPVEBattle = async () => {
-    if (!selectedBeast || !selectedEnemy || !userId) {
-      setBattleError('Please select a beast and enemy')
+    if (!selectedBeast || !autoMatchedEnemy || !userId) {
+      setBattleError('Please select a beast')
       return
     }
 
@@ -116,7 +279,7 @@ export default function BattlePage() {
         body: JSON.stringify({
           player_id: userId,
           beast_id: selectedBeast,
-          enemy_id: selectedEnemy,
+          enemy_id: autoMatchedEnemy.id,
         }),
       })
 
@@ -127,8 +290,8 @@ export default function BattlePage() {
       }
 
       if (data.success && data.battle) {
-        // Navigate to battle arena with the battle ID
-        router.push(`/battle/arena/${data.battle.id}`)
+        // Navigate to PVE battle arena with the battle ID
+        router.push(`/battle/pve/${data.battle.id}`)
       } else {
         throw new Error('Invalid response from server')
       }
@@ -173,7 +336,7 @@ export default function BattlePage() {
           className={`cursor-pointer transition-all hover:scale-105 ${
             selectedBeast === beast.id ? 'ring-4 ring-primary' : ''
           }`}
-          onClick={() => setSelectedBeast(beast.id)}
+          onClick={() => handleBeastSelection(beast.id)}
         >
           <CardHeader>
             <div className="flex justify-between items-start">
@@ -205,63 +368,52 @@ export default function BattlePage() {
     })
   }
 
-  // Render enemy selection list
-  const renderEnemyList = () => {
-    if (isLoadingEnemies) {
-      return (
-        <Card>
-          <CardContent className="flex items-center justify-center h-32">
-            <p className="text-muted-foreground font-mono">Loading enemies...</p>
-          </CardContent>
-        </Card>
-      )
-    }
-
-    if (enemies.length === 0) {
+  // Render auto-matched enemy display (read-only)
+  const renderAutoMatchedEnemy = () => {
+    if (!autoMatchedEnemy) {
       return (
         <Card>
           <CardContent className="flex flex-col items-center justify-center h-32 text-center">
-            <p className="text-muted-foreground font-mono mb-2">No enemies available</p>
+            <p className="text-muted-foreground font-mono mb-2">
+              {isLoadingEnemies ? 'Loading enemies...' : 'Select a beast to see your opponent'}
+            </p>
           </CardContent>
         </Card>
       )
     }
 
-    return enemies.map((enemy) => (
-      <Card
-        key={enemy.id}
-        className={`cursor-pointer transition-all hover:scale-105 ${
-          selectedEnemy === enemy.id ? 'ring-4 ring-destructive' : ''
-        }`}
-        onClick={() => setSelectedEnemy(enemy.id)}
-      >
+    return (
+      <Card className="ring-2 ring-destructive">
         <CardHeader>
           <div className="flex justify-between items-start">
-            <CardTitle className="text-lg">{enemy.name}</CardTitle>
+            <div>
+              <CardTitle className="text-lg">{autoMatchedEnemy.name}</CardTitle>
+              <Badge variant="outline" className="mt-2">Auto-Matched</Badge>
+            </div>
             <Badge variant="destructive" className="gap-1">
               <Crown className="w-3 h-3" />
-              LVL {enemy.level}
+              LVL {autoMatchedEnemy.level}
             </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          <HealthBar value={enemy.hp} max={enemy.maxHp} label="HP" />
+          <HealthBar value={autoMatchedEnemy.hp} max={autoMatchedEnemy.maxHp} label="HP" />
           <div className="grid grid-cols-3 gap-2 text-xs font-mono">
             <div className="flex items-center gap-1">
               <Zap className="w-3 h-3 text-accent" />
-              <span>ATK: {enemy.attack}</span>
+              <span>ATK: {autoMatchedEnemy.attack}</span>
             </div>
             <div className="flex items-center gap-1">
               <Shield className="w-3 h-3 text-blue-500" />
-              <span>DEF: {enemy.defense}</span>
+              <span>DEF: {autoMatchedEnemy.defense}</span>
             </div>
             <Badge variant="default" className="text-xs">
-              +{enemy.reward} $RISE
+              +{autoMatchedEnemy.reward} $RISE
             </Badge>
           </div>
         </CardContent>
       </Card>
-    ))
+    )
   }
 
   return (
@@ -311,18 +463,72 @@ export default function BattlePage() {
                 </div>
               </div>
 
-              {/* Enemy Selection */}
+              {/* Auto-Matched Enemy Display */}
               <div>
                 <h3 className="text-xl font-bold mb-4 text-destructive uppercase font-mono">
-                  Choose Your Enemy
+                  Your Opponent
                 </h3>
                 <div className="space-y-4">
-                  {renderEnemyList()}
+                  {renderAutoMatchedEnemy()}
                 </div>
               </div>
             </div>
 
-            <div className="mt-8 text-center space-y-4">
+            <div className="mt-8 space-y-6">
+              {/* Stake Input Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Coins className="w-5 h-5" />
+                    Stake RISE Tokens (Optional)
+                  </CardTitle>
+                  <CardDescription>
+                    Stake RISE tokens to increase your potential rewards
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="stake-amount" className="font-mono">
+                      Stake Amount (RISE)
+                    </Label>
+                    <Input
+                      id="stake-amount"
+                      type="number"
+                      placeholder="0.0"
+                      value={stakeAmount}
+                      onChange={handleStakeAmountChange}
+                      disabled={!selectedBeast || !autoMatchedEnemy || isStaking || isCreatingBattle}
+                      min="0"
+                      step="0.1"
+                      className="font-mono"
+                    />
+                  </div>
+                  {stakeError && (
+                    <div className="p-3 bg-destructive/10 border border-destructive rounded-md">
+                      <p className="text-destructive font-mono text-sm">{stakeError}</p>
+                    </div>
+                  )}
+                  <Button
+                    size="lg"
+                    disabled={
+                      !selectedBeast || 
+                      !autoMatchedEnemy || 
+                      !userId || 
+                      !stakeAmount || 
+                      parseFloat(stakeAmount) <= 0 ||
+                      isStaking || 
+                      isCreatingBattle
+                    }
+                    className="w-full"
+                    onClick={handleStake}
+                  >
+                    <Coins className="w-5 h-5 mr-2" />
+                    {isStaking ? 'Staking...' : 'Stake & Start Battle'}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Battle Error Display */}
               {battleError && (
                 <Card className="border-destructive">
                   <CardContent className="pt-6">
@@ -330,25 +536,30 @@ export default function BattlePage() {
                   </CardContent>
                 </Card>
               )}
-              <Button
-                size="lg"
-                disabled={!selectedBeast || !selectedEnemy || !userId || isCreatingBattle}
-                className="w-full md:w-auto min-w-64"
-                onClick={handleStartPVEBattle}
-              >
-                <Swords className="w-5 h-5 mr-2" />
-                {isCreatingBattle ? 'Creating Battle...' : 'Start Battle'}
-              </Button>
-              {!userId && isConnected && (
-                <p className="text-sm text-muted-foreground font-mono">
-                  Loading user data...
-                </p>
-              )}
-              {!isConnected && (
-                <p className="text-sm text-muted-foreground font-mono">
-                  Connect your wallet to start a battle
-                </p>
-              )}
+
+              {/* Start Battle Without Stake */}
+              <div className="text-center space-y-4">
+                <Button
+                  size="lg"
+                  disabled={!selectedBeast || !autoMatchedEnemy || !userId || isCreatingBattle || isStaking}
+                  className="w-full md:w-auto min-w-64"
+                  onClick={handleStartPVEBattle}
+                  variant="outline"
+                >
+                  <Swords className="w-5 h-5 mr-2" />
+                  {isCreatingBattle ? 'Creating Battle...' : 'Start Battle (No Stake)'}
+                </Button>
+                {!userId && isConnected && (
+                  <p className="text-sm text-muted-foreground font-mono">
+                    Loading user data...
+                  </p>
+                )}
+                {!isConnected && (
+                  <p className="text-sm text-muted-foreground font-mono">
+                    Connect your wallet to start a battle
+                  </p>
+                )}
+              </div>
             </div>
           </TabsContent>
 

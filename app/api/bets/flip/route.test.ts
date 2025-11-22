@@ -193,12 +193,12 @@ describe('POST /api/bets/flip', () => {
     expect(data.success).toBe(true)
     expect(data.result).toBe('heads')
     expect(data.won).toBe(true)
-    expect(data.payout).toBe(20)
+    expect(data.payout).toBe(40000) // 10 TON * 4000 RISE per TON
     expect(data.flip_id).toBe('test-flip-id')
     expect(data.rise_transfer_hash).toBe('12345')
     
-    // Verify RISE transfer was called
-    expect(requestRiseTokens).toHaveBeenCalledWith('test-wallet', 20)
+    // Verify RISE transfer was called with correct amount
+    expect(requestRiseTokens).toHaveBeenCalledWith('test-wallet', 40000)
   })
 
   it('should successfully process a losing flip', async () => {

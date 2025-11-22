@@ -86,3 +86,46 @@ export function formatRiseBalance(balance: number, decimals: number = 2): string
     maximumFractionDigits: decimals
   })
 }
+
+/**
+ * Fetch RISE jetton wallet address for a given owner address
+ * @param ownerAddress - The wallet address to get jetton wallet for
+ * @returns The jetton wallet address or null if not found
+ */
+export async function fetchRiseJettonWallet(ownerAddress: string): Promise<string | null> {
+  try {
+    const url = new URL(`${TONCENTER_TESTNET_API}/jetton/wallets`)
+    url.searchParams.append('owner_address', ownerAddress)
+    url.searchParams.append('jetton_address', RISE_JETTON_ADDRESS)
+    url.searchParams.append('limit', '1')
+
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    }
+
+    // Add API key if available
+    if (TONCENTER_API_KEY) {
+      headers['X-API-Key'] = TONCENTER_API_KEY
+    }
+
+    const response = await fetch(url.toString(), { headers })
+
+    if (!response.ok) {
+      console.error('Failed to fetch jetton wallet:', response.status, response.statusText)
+      return null
+    }
+
+    const data: JettonWalletsResponse = await response.json()
+
+    // Check if wallet exists
+    if (!data.jetton_wallets || data.jetton_wallets.length === 0) {
+      return null
+    }
+
+    // Return the jetton wallet address
+    return data.jetton_wallets[0].address
+  } catch (error) {
+    console.error('Error fetching jetton wallet:', error)
+    return null
+  }
+}

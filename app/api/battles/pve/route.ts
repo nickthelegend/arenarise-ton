@@ -50,7 +50,7 @@ function generateEnemy(id: number): Enemy | null {
 // Create a new PVE battle
 export async function POST(request: NextRequest) {
   try {
-    const { player_id, beast_id, enemy_id } = await request.json()
+    const { player_id, beast_id, enemy_id, stake_amount } = await request.json()
 
     // Validate required fields
     if (!player_id || !beast_id || !enemy_id) {
@@ -58,6 +58,16 @@ export async function POST(request: NextRequest) {
         { error: 'Missing required fields: player_id, beast_id, and enemy_id are required' },
         { status: 400 }
       )
+    }
+
+    // Validate stake_amount if provided (Requirement 5.1)
+    if (stake_amount !== undefined && stake_amount !== null) {
+      if (typeof stake_amount !== 'number' || stake_amount <= 0) {
+        return NextResponse.json(
+          { error: 'Invalid stake_amount: must be a positive number greater than zero' },
+          { status: 400 }
+        )
+      }
     }
 
     // Validate enemy exists
@@ -107,6 +117,7 @@ export async function POST(request: NextRequest) {
 
     // Create battle record with battle_type='pve'
     // Initialize HP values to max_hp for both combatants
+    // Store stake_amount in bet_amount field if provided
     const { data: battle, error: battleError } = await supabase
       .from('battles')
       .insert({
@@ -118,7 +129,7 @@ export async function POST(request: NextRequest) {
         enemy_id: enemy_id,
         status: 'in_progress',
         current_turn: player_id, // Player starts
-        bet_amount: 0,
+        bet_amount: stake_amount || 0,
         reward_amount: 0,
         reward_status: 'none'
       })
@@ -140,7 +151,8 @@ export async function POST(request: NextRequest) {
         beast_id: battle.beast1_id,
         enemy_id: battle.enemy_id,
         status: battle.status,
-        battle_type: battle.battle_type
+        battle_type: battle.battle_type,
+        stake_amount: battle.bet_amount
       }
     }, { status: 201 })
   } catch (error: any) {

@@ -11,10 +11,11 @@ interface OutcomeAnimationProps {
   onComplete?: () => void;
   visible: boolean;
   rewardAmount?: number;
+  stakeAmount?: number;
 }
 
 // Memoize component to prevent unnecessary re-renders
-const OutcomeAnimationComponent = ({ outcome, onComplete, visible, rewardAmount }: OutcomeAnimationProps) => {
+const OutcomeAnimationComponent = ({ outcome, onComplete, visible, rewardAmount, stakeAmount }: OutcomeAnimationProps) => {
   const router = useRouter();
   const [show, setShow] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -99,16 +100,30 @@ const OutcomeAnimationComponent = ({ outcome, onComplete, visible, rewardAmount 
               <p className="text-xl text-green-300">
                 You have triumphed in battle!
               </p>
-              {rewardAmount && rewardAmount > 0 && (
-                <div className="mt-4 p-4 bg-gradient-to-r from-yellow-500/20 to-green-500/20 border-2 border-yellow-400 rounded-lg animate-in zoom-in duration-500">
-                  <p className="text-2xl font-bold text-yellow-300">
-                    +{rewardAmount} RISE
-                  </p>
-                  <p className="text-sm text-green-200">
-                    Reward earned!
-                  </p>
+              {(rewardAmount && rewardAmount > 0) || (stakeAmount && stakeAmount > 0) ? (
+                <div className="mt-4 space-y-3">
+                  {rewardAmount && rewardAmount > 0 && (
+                    <div className="p-4 bg-gradient-to-r from-yellow-500/20 to-green-500/20 border-2 border-yellow-400 rounded-lg animate-in zoom-in duration-500">
+                      <p className="text-2xl font-bold text-yellow-300">
+                        +{rewardAmount} RISE
+                      </p>
+                      <p className="text-sm text-green-200">
+                        Reward earned!
+                      </p>
+                    </div>
+                  )}
+                  {stakeAmount && stakeAmount > 0 && (
+                    <div className="p-3 bg-gradient-to-r from-blue-500/20 to-purple-500/20 border-2 border-blue-400 rounded-lg animate-in zoom-in duration-700">
+                      <p className="text-lg font-bold text-blue-300">
+                        Stake: {stakeAmount} RISE
+                      </p>
+                      <p className="text-xs text-blue-200">
+                        {outcome === 'victory' ? 'Stake returned + reward' : 'Stake lost'}
+                      </p>
+                    </div>
+                  )}
                 </div>
-              )}
+              ) : null}
             </div>
           </>
         ) : (
@@ -127,6 +142,16 @@ const OutcomeAnimationComponent = ({ outcome, onComplete, visible, rewardAmount 
               <p className="text-xl text-red-300">
                 Better luck next time...
               </p>
+              {stakeAmount && stakeAmount > 0 && (
+                <div className="mt-4 p-3 bg-gradient-to-r from-red-500/20 to-orange-500/20 border-2 border-red-400 rounded-lg animate-in zoom-in duration-700">
+                  <p className="text-lg font-bold text-red-300">
+                    Stake: {stakeAmount} RISE
+                  </p>
+                  <p className="text-xs text-red-200">
+                    Stake lost
+                  </p>
+                </div>
+              )}
             </div>
           </>
         )}
