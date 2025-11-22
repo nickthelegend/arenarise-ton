@@ -2,12 +2,15 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Coins, Wallet, Plus } from 'lucide-react'
+import { Coins, Wallet, Plus, User } from 'lucide-react'
 import { TonConnectButton, useTonAddress } from '@tonconnect/ui-react'
+import { useTelegram } from '@/components/telegram-provider'
+import { Badge } from '@/components/8bitcn/badge'
 
 export function Navbar() {
   const pathname = usePathname()
   const address = useTonAddress()
+  const { user: telegramUser, isInTelegram } = useTelegram()
   const riseBalance = 1250.50 // Mock data
 
   return (
@@ -55,6 +58,23 @@ export function Navbar() {
 
           {/* Wallet Connect & $RISE Token Display */}
           <div className="flex items-center gap-2 md:gap-3">
+            {/* Telegram User Display - Only show in Telegram */}
+            {isInTelegram && telegramUser && (
+              <div className="hidden md:flex items-center gap-2 bg-muted px-3 py-2 border-2 border-blue-500">
+                <User className="w-4 h-4 text-blue-500" />
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-foreground font-mono">
+                    {telegramUser.username ? `@${telegramUser.username}` : telegramUser.first_name}
+                  </span>
+                  {telegramUser.is_premium && (
+                    <Badge variant="default" className="text-[8px] h-4 px-1">
+                      PREMIUM
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            )}
+            
             {/* TON Connect Button */}
             <div className="ton-connect-button">
               <TonConnectButton />

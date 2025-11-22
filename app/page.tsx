@@ -1,11 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { Swords, Package, Coins, TrendingUp, Users, Zap, Wallet } from 'lucide-react'
+import { Swords, Package, Coins, TrendingUp, Users, Zap, Wallet, User } from 'lucide-react'
 import { Navbar } from '@/components/navbar'
 import { Button } from '@/components/8bitcn/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/8bitcn/card'
+import { Badge } from '@/components/8bitcn/badge'
 import { useTonAddress, useTonConnectUI } from '@tonconnect/ui-react'
+import { useTelegram } from '@/components/telegram-provider'
 import { useEffect, useState } from 'react'
 
 interface Stats {
@@ -18,6 +20,7 @@ interface Stats {
 export default function HomePage() {
   const address = useTonAddress()
   const [tonConnectUI] = useTonConnectUI()
+  const { user: telegramUser, isInTelegram } = useTelegram()
   const [stats, setStats] = useState<Stats>({
     totalBeasts: 0,
     activePlayers: 0,
@@ -72,6 +75,36 @@ export default function HomePage() {
         ) : (
           // Show game content when connected
           <>
+            {/* Telegram User Welcome Card - Only show in Telegram */}
+            {isInTelegram && telegramUser && (
+              <Card className="border-blue-500 bg-gradient-to-r from-blue-500/10 to-purple-500/10 mb-8">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center border-2 border-blue-500">
+                      <User className="w-8 h-8 text-blue-500" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-xl font-bold text-foreground mb-1">
+                        Welcome, {telegramUser.first_name}!
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        {telegramUser.username && (
+                          <span className="text-sm text-muted-foreground font-mono">
+                            @{telegramUser.username}
+                          </span>
+                        )}
+                        {telegramUser.is_premium && (
+                          <Badge variant="default" className="text-xs">
+                            ⭐ PREMIUM
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Hero Section */}
             <div className="lg:hidden mb-8">
               <Card className="border-primary bg-card/50 backdrop-blur-sm">

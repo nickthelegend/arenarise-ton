@@ -1,7 +1,7 @@
 {
-  "url": "http://localhost:3000",
+  "url": "https://arenarise.nickthelegend.tech",
   "name": "ArenaRise",
-  "iconUrl": "http://localhost:3000/icon.svg",
-  "termsOfUseUrl": "http://localhost:3000/terms",
-  "privacyPolicyUrl": "http://localhost:3000/privacy"
+  "iconUrl": "https://arenarise.nickthelegend.tech/icon.svg",
+  "termsOfUseUrl": "https://arenarise.nickthelegend.tech/terms",
+  "privacyPolicyUrl": "https://arenarise.nickthelegend.tech/privacy"
 }

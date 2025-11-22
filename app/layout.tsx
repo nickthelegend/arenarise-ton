@@ -4,6 +4,7 @@ import { Press_Start_2P, VT323 } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { TonConnectUIProvider } from '@tonconnect/ui-react'
 import { WalletProvider } from '@/components/wallet-provider'
+import { TelegramProvider } from '@/components/telegram-provider'
 import './globals.css'
 import { useEffect } from 'react'
 
@@ -51,12 +52,14 @@ export default function RootLayout({
         <TonConnectUIProvider
           manifestUrl={manifestUrl}
           actionsConfiguration={{
-            twaReturnUrl: 'https://t.me/your_bot_name'
+            twaReturnUrl: 'https://t.me/ArenaRiseBot'
           }}
         >
-          <WalletProvider>
-            {children}
-          </WalletProvider>
+          <TelegramProvider>
+            <WalletProvider>
+              {children}
+            </WalletProvider>
+          </TelegramProvider>
         </TonConnectUIProvider>
         <Analytics />
       </body>
