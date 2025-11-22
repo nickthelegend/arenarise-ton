@@ -18,6 +18,7 @@ interface Beast {
   defense: number
   speed: number
   level: number
+  image_ipfs_uri?: string
   traits: {
     trait_type: string
     value: string
@@ -183,8 +184,16 @@ export default function InventoryPage() {
                   <>
                     <h2 className="text-2xl font-bold mb-6 text-foreground">Beast Details</h2>
                     
-                    <div className="aspect-square bg-muted border-2 border-border mb-6 flex items-center justify-center">
-                      <div className="text-8xl">🐉</div>
+                    <div className="aspect-square bg-muted border-2 border-border mb-6 flex items-center justify-center overflow-hidden">
+                      {selectedBeast.image_ipfs_uri ? (
+                        <img 
+                          src={selectedBeast.image_ipfs_uri.replace('ipfs://', 'https://ipfs.io/ipfs/')} 
+                          alt={selectedBeast.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="text-8xl">🐉</div>
+                      )}
                     </div>
 
                     <div className="space-y-4 mb-6">

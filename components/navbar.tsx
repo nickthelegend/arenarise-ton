@@ -6,12 +6,42 @@ import { Coins, Wallet, Plus, User } from 'lucide-react'
 import { TonConnectButton, useTonAddress } from '@tonconnect/ui-react'
 import { useTelegram } from '@/components/telegram-provider'
 import { Badge } from '@/components/8bitcn/badge'
+import { useState, useEffect } from 'react'
+import { fetchRiseBalance, formatRiseBalance } from '@/lib/jetton-utils'
 
 export function Navbar() {
   const pathname = usePathname()
   const address = useTonAddress()
   const { user: telegramUser, isInTelegram } = useTelegram()
-  const riseBalance = 1250.50 // Mock data
+  const [riseBalance, setRiseBalance] = useState<number>(0)
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false)
+
+  // Fetch RISE balance when wallet is connected
+  useEffect(() => {
+    async function loadRiseBalance() {
+      if (!address) {
+        setRiseBalance(0)
+        return
+      }
+
+      setIsLoadingBalance(true)
+      try {
+        const balance = await fetchRiseBalance(address)
+        setRiseBalance(balance)
+      } catch (error) {
+        console.error('Error loading RISE balance:', error)
+        setRiseBalance(0)
+      } finally {
+        setIsLoadingBalance(false)
+      }
+    }
+
+    loadRiseBalance()
+    
+    // Refresh balance every 30 seconds
+    const interval = setInterval(loadRiseBalance, 30000)
+    return () => clearInterval(interval)
+  }, [address])
 
   return (
     <nav className="sticky top-0 z-50 border-b-4 border-primary bg-card">
@@ -87,7 +117,9 @@ export function Navbar() {
                   <Coins className="w-3.5 h-3.5 md:w-5 md:h-5 text-accent" />
                   <div className="flex flex-col">
                     <span className="text-[10px] md:text-xs text-muted-foreground font-mono">$RISE</span>
-                    <span className="text-xs md:text-sm font-bold text-foreground font-mono">{riseBalance.toFixed(2)}</span>
+                    <span className="text-xs md:text-sm font-bold text-foreground font-mono">
+                      {isLoadingBalance ? '...' : formatRiseBalance(riseBalance, 2)}
+                    </span>
                   </div>
                   <Wallet className="w-3.5 h-3.5 md:w-5 md:h-5 text-primary" />
                 </div>

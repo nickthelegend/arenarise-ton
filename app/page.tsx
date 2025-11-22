@@ -9,6 +9,7 @@ import { Badge } from '@/components/8bitcn/badge'
 import { useTonAddress, useTonConnectUI } from '@tonconnect/ui-react'
 import { useTelegram } from '@/components/telegram-provider'
 import { useEffect, useState } from 'react'
+import { fetchRiseBalance, formatRiseBalance } from '@/lib/jetton-utils'
 
 interface Stats {
   totalBeasts: number
@@ -28,6 +29,8 @@ export default function HomePage() {
     totalVolume: '$0'
   })
   const [isLoadingStats, setIsLoadingStats] = useState(true)
+  const [riseBalance, setRiseBalance] = useState<number>(0)
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false)
 
   useEffect(() => {
     async function fetchStats() {
@@ -47,6 +50,33 @@ export default function HomePage() {
 
     fetchStats()
   }, [])
+
+  // Fetch RISE balance when wallet is connected
+  useEffect(() => {
+    async function loadRiseBalance() {
+      if (!address) {
+        setRiseBalance(0)
+        return
+      }
+
+      setIsLoadingBalance(true)
+      try {
+        const balance = await fetchRiseBalance(address)
+        setRiseBalance(balance)
+      } catch (error) {
+        console.error('Error loading RISE balance:', error)
+        setRiseBalance(0)
+      } finally {
+        setIsLoadingBalance(false)
+      }
+    }
+
+    loadRiseBalance()
+    
+    // Refresh balance every 30 seconds
+    const interval = setInterval(loadRiseBalance, 30000)
+    return () => clearInterval(interval)
+  }, [address])
 
   return (
     <div className="min-h-screen">
@@ -123,7 +153,9 @@ export default function HomePage() {
                       <Coins className="w-4 h-4 text-accent" />
                       <span className="text-xs font-mono text-muted-foreground">$RISE</span>
                     </div>
-                    <span className="text-sm font-mono font-bold text-accent">1250.50</span>
+                    <span className="text-sm font-mono font-bold text-accent">
+                      {isLoadingBalance ? '...' : formatRiseBalance(riseBalance, 2)}
+                    </span>
                   </div>
                 </CardContent>
               </Card>
