@@ -65,12 +65,12 @@ export function generateCoinFlipResult(): CoinSide {
  * 
  * @param betAmount - The original bet amount in TON
  * @param won - Whether the user won the bet
- * @returns The payout amount in RISE tokens (2x bet for wins, 0 for losses)
+ * @returns The payout amount in RISE tokens (4000 RISE per 1 TON for wins, 0 for losses)
  */
 export function calculatePayout(betAmount: number, won: boolean): number {
-  // Calculate 2x bet amount for wins (Requirement 4.1)
+  // Calculate 4000 RISE per 1 TON for wins (Requirement 4.1)
   if (won) {
-    return betAmount * 2;
+    return betAmount * 4000;
   }
   
   // Return 0 for losses

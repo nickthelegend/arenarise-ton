@@ -5,6 +5,7 @@ import { useTonConnectUI, useTonAddress } from '@tonconnect/ui-react'
 import { toNano, fromNano, Address } from '@ton/core'
 import { TonClient } from '@ton/ton'
 import { Coins, DollarSign } from 'lucide-react'
+import { Navbar } from '@/components/navbar'
 import { Button } from '@/components/8bitcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/8bitcn/card'
 import { Badge } from '@/components/8bitcn/badge'
@@ -421,12 +422,14 @@ export default function BetsPage() {
     transactionStatus === 'flipping'
 
   return (
-    <div className="min-h-screen bg-background py-8 px-4">
-      <div className="container mx-auto max-w-4xl">
-        <div className="mb-8 text-center">
-          <h1 className="text-4xl font-bold text-primary mb-2">COIN FLIP BETTING</h1>
-          <p className="text-muted-foreground">Bet TON, win RISE tokens!</p>
-        </div>
+    <div className="min-h-screen bg-background">
+      <Navbar />
+      <div className="py-8 px-4">
+        <div className="container mx-auto max-w-4xl">
+          <div className="mb-8 text-center">
+            <h1 className="text-4xl font-bold text-primary mb-2">COIN FLIP BETTING</h1>
+            <p className="text-muted-foreground">Bet TON, win RISE tokens!</p>
+          </div>
 
         {!walletAddress ? (
           <Card>
@@ -519,7 +522,7 @@ export default function BetsPage() {
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-mono text-muted-foreground">Potential Payout:</span>
                       <span className="text-lg font-bold font-mono text-accent">
-                        {(parseFloat(betAmount) * 2).toFixed(2)} RISE
+                        {(parseFloat(betAmount) * 4000).toFixed(2)} RISE
                       </span>
                     </div>
                   </div>
@@ -661,6 +664,7 @@ export default function BetsPage() {
             </Card>
           </div>
         )}
+        </div>
       </div>
     </div>
   )

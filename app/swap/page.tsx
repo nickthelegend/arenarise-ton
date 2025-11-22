@@ -5,6 +5,7 @@ import { ArrowDownUp, Info } from 'lucide-react'
 import { useTonConnectUI, useTonAddress } from '@tonconnect/ui-react'
 import { toNano, fromNano, Address } from '@ton/core'
 import { TonClient } from '@ton/ton'
+import { Navbar } from '@/components/navbar'
 import { Button } from '@/components/8bitcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/8bitcn/card'
 import { Badge } from '@/components/8bitcn/badge'
@@ -441,12 +442,14 @@ export default function SwapPage() {
     (tonBalance !== null && Number(tonAmount) > tonBalance)
 
   return (
-    <div className="min-h-screen bg-background py-8 px-4">
-      <div className="container mx-auto max-w-2xl">
-        <div className="mb-8 text-center">
-          <h1 className="text-4xl font-bold text-primary mb-2">TOKEN SWAP</h1>
-          <p className="text-muted-foreground">Purchase $RISE tokens with TON</p>
-        </div>
+    <div className="min-h-screen bg-background">
+      <Navbar />
+      <div className="py-8 px-4">
+        <div className="container mx-auto max-w-2xl">
+          <div className="mb-8 text-center">
+            <h1 className="text-4xl font-bold text-primary mb-2">TOKEN SWAP</h1>
+            <p className="text-muted-foreground">Purchase $RISE tokens with TON</p>
+          </div>
 
         {!walletAddress ? (
           <Card>
@@ -657,6 +660,7 @@ export default function SwapPage() {
             </CardContent>
           </Card>
         )}
+        </div>
       </div>
     </div>
   )
