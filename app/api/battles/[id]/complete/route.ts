@@ -15,15 +15,26 @@ interface CompleteRequest {
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Await params for Next.js 15+
+    const params = await context.params
     const battleId = params.id
+    
+    // Add detailed logging
+    console.log('=== Battle Complete API Called ===')
+    console.log('Battle ID:', battleId)
+    console.log('Request URL:', request.url)
+    
     const body: CompleteRequest = await request.json()
     const { winner, final_player_hp, final_enemy_hp } = body
+    
+    console.log('Request body:', { winner, final_player_hp, final_enemy_hp })
 
     // Validate required fields
     if (!winner || final_player_hp === undefined || final_enemy_hp === undefined) {
+      console.error('Validation failed: Missing required fields')
       return NextResponse.json(
         { error: 'Missing required fields: winner, final_player_hp, and final_enemy_hp are required' },
         { status: 400 }
@@ -39,6 +50,7 @@ export async function POST(
     }
 
     // Requirement 6.1: Validate battle exists
+    console.log('Fetching battle from database...')
     const { data: battle, error: battleError } = await supabase
       .from('battles')
       .select('*')
@@ -46,11 +58,14 @@ export async function POST(
       .single()
 
     if (battleError || !battle) {
+      console.error('Battle not found:', battleError?.message || 'No battle data')
       return NextResponse.json(
         { error: 'Battle not found' },
         { status: 404 }
       )
     }
+    
+    console.log('Battle found:', { id: battle.id, status: battle.status, player1_id: battle.player1_id })
 
     // Requirement 6.2: Validate player is participant
     // For PVE battles, player is always player1_id
@@ -92,10 +107,12 @@ export async function POST(
 
     // Requirement 4.1: Calculate reward (200 RISE for wins, 0 for losses)
     const rewardAmount = calculateReward(winner)
+    console.log('Calculated reward:', rewardAmount, 'RISE')
 
     // Update battle record with completion status and winner
     const winnerId = winner === 'player' ? playerId : null
     
+    console.log('Updating battle status to completed...')
     const { error: updateError } = await supabase
       .from('battles')
       .update({
@@ -107,11 +124,14 @@ export async function POST(
       .eq('id', battleId)
 
     if (updateError) {
+      console.error('Failed to update battle:', updateError.message)
       return NextResponse.json(
         { error: `Failed to update battle: ${updateError.message}` },
         { status: 500 }
       )
     }
+    
+    console.log('Battle updated successfully')
 
     // Requirement 4.2: Award RISE tokens
     let rewardStatus: 'completed' | 'failed' | 'pending' | 'none' = 'none'
@@ -205,6 +225,10 @@ export async function POST(
     }
 
     // Return success response
+    console.log('=== Battle Complete Success ===')
+    console.log('Reward status:', rewardStatus)
+    console.log('Reward amount:', rewardAmount)
+    
     return NextResponse.json({
       success: true,
       won: winner === 'player',
@@ -221,7 +245,9 @@ export async function POST(
     }, { status: 200 })
 
   } catch (error: any) {
-    console.error('Battle completion error:', error)
+    console.error('=== Battle Completion Error ===')
+    console.error('Error:', error)
+    console.error('Stack:', error.stack)
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }
