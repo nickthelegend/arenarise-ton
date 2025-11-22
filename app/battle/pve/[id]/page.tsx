@@ -10,6 +10,7 @@ import { HealthBar } from '@/components/8bitcn/health-bar'
 import { useTonAddress } from '@tonconnect/ui-react'
 import { Zap, Shield, Sparkles, Trophy, Loader2, Coins } from 'lucide-react'
 import dynamic from 'next/dynamic'
+import { BeastImage } from '@/components/battle/beast-image'
 
 // Lazy load outcome animation component for better performance
 const OutcomeAnimation = dynamic(
@@ -33,6 +34,8 @@ interface Beast {
   defense: number
   level: number
   traits: any
+  image_url?: string
+  image_ipfs_uri?: string
 }
 
 interface Enemy {
@@ -370,7 +373,14 @@ export default function PVEArenaPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="text-6xl text-center">🔥</div>
+              <div className="flex justify-center">
+                <BeastImage 
+                  imageUrl={myBeast.image_ipfs_uri || myBeast.image_url}
+                  beastName={myBeast.name}
+                  beastType={myBeast.traits?.type}
+                  size="md"
+                />
+              </div>
               <HealthBar value={myBeastHp} max={myBeast.max_hp} label="HP" />
               <div className="grid grid-cols-2 gap-2 text-sm font-mono">
                 <div className="flex items-center gap-2">
@@ -397,7 +407,11 @@ export default function PVEArenaPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="text-6xl text-center">⚡</div>
+              <div className="flex justify-center">
+                <div className="w-32 h-32 flex items-center justify-center bg-destructive/20 rounded-lg border-2 border-destructive/30">
+                  <span className="text-6xl">⚡</span>
+                </div>
+              </div>
               <HealthBar value={enemyHp} max={enemy.maxHp} label="HP" />
               <div className="grid grid-cols-2 gap-2 text-sm font-mono">
                 <div className="flex items-center gap-2">
