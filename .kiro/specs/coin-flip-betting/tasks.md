@@ -174,16 +174,30 @@
     - Create animated coin flip visual
     - Show result after animation
 
+
+
+
     - Display win/loss message
 
+
     - _Requirements: 3.3, 3.4, 3.5, 4.3, 4.4_
+
+
+
 
   - [ ] 5.3 Add betting history display
 
     - Fetch and display user's flip history
+
+
+
+
+
     - Show bet amount, choice, result, outcome
     - Handle empty history state
     - _Requirements: 5.2, 5.3, 5.5_
+
+
 
   - [ ] 5.4 Implement form validation and error handling
 

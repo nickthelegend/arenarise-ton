@@ -259,38 +259,97 @@ export default function BetsPage() {
         paymentResult = await tonConnectUI.sendTransaction(transaction)
         console.log('Payment transaction sent successfully:', paymentResult?.boc)
       } catch (paymentError: any) {
-        // Handle user rejection gracefully
-        if (paymentError?.message?.includes('reject') || 
-            paymentError?.message?.includes('cancel') ||
-            paymentError?.message?.includes('user rejected')) {
+        console.error('Payment transaction error:', paymentError)
+        
+        // Handle user rejection gracefully - don't show error, just reset
+        if (paymentError?.message?.toLowerCase().includes('reject') || 
+            paymentError?.message?.toLowerCase().includes('cancel') ||
+            paymentError?.message?.toLowerCase().includes('user rejected') ||
+            paymentError?.message?.toLowerCase().includes('user declined') ||
+            paymentError?.code === 300 || // TON Connect user rejection code
+            paymentError?.code === 'USER_REJECTS_ERROR') {
+          console.log('User rejected transaction')
           setTransactionStatus('idle')
           setErrorMessage(null)
           return
         }
         
+        // Handle insufficient balance
+        if (paymentError?.message?.toLowerCase().includes('insufficient') || 
+            paymentError?.message?.toLowerCase().includes('not enough') ||
+            paymentError?.message?.toLowerCase().includes('balance')) {
+          setTransactionStatus('error')
+          setErrorMessage('Insufficient TON balance to complete this transaction.')
+          setBetAmountError('Insufficient balance')
+          return
+        }
+        
+        // Handle network errors
+        if (paymentError?.message?.toLowerCase().includes('network') || 
+            paymentError?.message?.toLowerCase().includes('timeout') ||
+            paymentError?.message?.toLowerCase().includes('connection') ||
+            paymentError?.message?.toLowerCase().includes('fetch failed') ||
+            paymentError?.name === 'NetworkError' ||
+            paymentError?.code === 'NETWORK_ERROR') {
+          setTransactionStatus('error')
+          setErrorMessage('Network error. Please check your connection and try again.')
+          return
+        }
+        
         // Handle other payment errors
-        throw new Error(`Payment failed: ${paymentError?.message || 'Unknown error'}`)
+        setTransactionStatus('error')
+        setErrorMessage(`Payment failed: ${paymentError?.message || 'Unknown error occurred'}`)
+        return
       }
 
       // Step 2: Execute coin flip
       setTransactionStatus('flipping')
       
-      const flipResponse = await fetch('/api/bets/flip', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          wallet_address: walletAddress,
-          bet_amount: numBetAmount,
-          choice: selectedChoice,
-          transaction_hash: paymentResult?.boc || 'mock_hash',
-        }),
-      })
+      let flipResponse: Response
+      try {
+        // Add timeout to fetch request (30 seconds)
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 30000)
+        
+        flipResponse = await fetch('/api/bets/flip', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            wallet_address: walletAddress,
+            bet_amount: numBetAmount,
+            choice: selectedChoice,
+            transaction_hash: paymentResult?.boc || 'mock_hash',
+          }),
+          signal: controller.signal,
+        })
+        
+        clearTimeout(timeoutId)
+      } catch (fetchError: any) {
+        // Handle network errors during API call
+        console.error('Network error during flip API call:', fetchError)
+        
+        if (fetchError.name === 'AbortError') {
+          throw new Error('Request timeout. Please check your connection and try again.')
+        }
+        
+        throw new Error('Network error. Please check your connection and try again.')
+      }
 
       if (!flipResponse.ok) {
         const errorData = await flipResponse.json().catch(() => ({ error: 'Unknown error' }))
-        throw new Error(errorData.error || `Server error: ${flipResponse.status}`)
+        
+        // Check for specific server errors
+        if (flipResponse.status >= 500) {
+          throw new Error('Server error. Please try again later.')
+        } else if (flipResponse.status === 400) {
+          throw new Error(errorData.error || 'Invalid request. Please check your input.')
+        } else if (flipResponse.status === 401 || flipResponse.status === 403) {
+          throw new Error('Authentication error. Please reconnect your wallet.')
+        } else {
+          throw new Error(errorData.error || `Server error: ${flipResponse.status}`)
+        }
       }
 
       const flipData = await flipResponse.json()
@@ -321,24 +380,35 @@ export default function BetsPage() {
       // Categorize and format error messages
       let errorMsg = 'Transaction failed. Please try again.'
       
-      if (error?.message?.includes('insufficient') || error?.message?.includes('balance')) {
-        errorMsg = 'Insufficient TON balance to complete this transaction.'
-      } else if (error?.message?.includes('network') || 
-                 error?.message?.includes('timeout') || 
-                 error?.message?.includes('fetch') ||
-                 error?.message?.includes('NetworkError')) {
-        errorMsg = 'Network error. Please check your connection and try again.'
-      } else if (error?.message?.includes('Payment failed')) {
-        errorMsg = error.message
-      } else if (error?.message?.includes('Server error')) {
-        errorMsg = 'Server error. Please try again later.'
-      } else if (error?.message?.includes('RISE transfer')) {
-        errorMsg = 'Coin flip completed but RISE transfer failed. Please contact support.'
-      } else if (error?.message) {
+      // Check if error message already exists (from earlier error handling)
+      if (error?.message) {
         errorMsg = error.message
       }
       
+      // Additional categorization for uncaught errors
+      const errorMsgLower = errorMsg.toLowerCase()
+      
+      if (errorMsgLower.includes('insufficient') || errorMsgLower.includes('balance')) {
+        errorMsg = 'Insufficient TON balance to complete this transaction.'
+        setBetAmountError('Insufficient balance')
+      } else if (errorMsgLower.includes('network') || 
+                 errorMsgLower.includes('timeout') || 
+                 errorMsgLower.includes('connection') ||
+                 errorMsgLower.includes('fetch')) {
+        errorMsg = 'Network error. Please check your connection and try again.'
+      } else if (errorMsgLower.includes('server error')) {
+        errorMsg = 'Server error. Please try again later.'
+      } else if (errorMsgLower.includes('authentication') || errorMsgLower.includes('wallet')) {
+        errorMsg = 'Wallet authentication error. Please reconnect your wallet and try again.'
+      } else if (errorMsgLower.includes('rise transfer')) {
+        errorMsg = 'Coin flip completed but RISE transfer failed. Please contact support.'
+      }
+      
       setErrorMessage(errorMsg)
+      
+      // Note: TON is only deducted if the transaction was successfully sent
+      // If we reach this catch block before the transaction completes,
+      // no TON will be deducted (satisfies requirement 6.4)
     }
   }
 

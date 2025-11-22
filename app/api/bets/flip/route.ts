@@ -7,6 +7,7 @@ import {
   checkWinCondition,
   type CoinSide
 } from '@/lib/coin-flip-utils'
+import { requestRiseTokens, RiseTransferError } from '@/lib/swap-utils'
 
 /**
  * POST /api/bets/flip
@@ -111,11 +112,65 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // TODO: Transfer RISE tokens to winner (Requirement 4.2)
-    // This will be implemented in task 8
-    // For now, we just log the transfer details
+    // Transfer RISE tokens to winner (Requirements 4.2, 6.5)
+    let riseTransferHash: string | null = null
+
     if (won && payout > 0) {
-      console.log(`RISE transfer needed: ${payout} RISE to ${wallet_address}`)
+      try {
+        // Log transfer attempt
+        console.log(`Initiating RISE transfer: ${payout} RISE to ${wallet_address}`)
+
+        // Request RISE token transfer
+        const transferResult = await requestRiseTokens(
+          wallet_address,
+          payout
+        )
+
+        riseTransferHash = `${transferResult.seqno}` // Store sequence number as transfer hash
+        
+        // Log successful transfer details (Requirement 6.5)
+        console.log(`RISE transfer successful:`, {
+          flipId: flip.id,
+          wallet: wallet_address,
+          amount: payout,
+          fromWallet: transferResult.fromWallet,
+          toWallet: transferResult.toWallet,
+          jettonAmount: transferResult.jettonAmount,
+          seqno: transferResult.seqno
+        })
+
+        // Update flip record with transfer hash
+        await supabase
+          .from('coin_flips')
+          .update({ rise_transfer_hash: riseTransferHash })
+          .eq('id', flip.id)
+
+      } catch (transferError: any) {
+        // Handle transfer failures gracefully (Requirement 6.5)
+        console.error(`RISE transfer failed:`, {
+          flipId: flip.id,
+          wallet: wallet_address,
+          amount: payout,
+          error: transferError.message,
+          isRetryable: transferError instanceof RiseTransferError ? transferError.isRetryable : false
+        })
+
+        // Update flip status in database to mark as failed
+        await supabase
+          .from('coin_flips')
+          .update({ status: 'failed' })
+          .eq('id', flip.id)
+
+        // Return error response to notify user
+        return NextResponse.json({
+          success: false,
+          result,
+          won,
+          payout,
+          flip_id: flip.id,
+          error: 'Coin flip completed but RISE transfer failed. Please contact support.'
+        }, { status: 500 })
+      }
     }
 
     // Return result to client (Requirement 4.5)
@@ -124,7 +179,8 @@ export async function POST(request: NextRequest) {
       result,
       won,
       payout: won ? payout : undefined,
-      flip_id: flip.id
+      flip_id: flip.id,
+      rise_transfer_hash: riseTransferHash
     }, { status: 200 })
 
   } catch (error: any) {

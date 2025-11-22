@@ -8,6 +8,7 @@ import { useTelegram } from '@/components/telegram-provider'
 import { Badge } from '@/components/8bitcn/badge'
 import { useState, useEffect } from 'react'
 import { fetchRiseBalance, formatRiseBalance } from '@/lib/jetton-utils'
+import Image from 'next/image'
 
 export function Navbar() {
   const pathname = usePathname()
@@ -95,6 +96,27 @@ export function Navbar() {
 
           {/* Wallet Connect & $RISE Token Display */}
           <div className="flex items-center gap-2 md:gap-3">
+            {/* Profile Image - Mobile only, show when wallet connected */}
+            {address && (
+              <Link
+                href="/profile"
+                className="flex md:hidden items-center justify-center w-10 h-10 border-2 border-primary hover:border-accent transition-colors overflow-hidden bg-muted"
+                title="View Profile"
+              >
+                {isInTelegram && telegramUser?.photo_url ? (
+                  <Image
+                    src={telegramUser.photo_url}
+                    alt="Profile"
+                    width={40}
+                    height={40}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <User className="w-5 h-5 text-primary" />
+                )}
+              </Link>
+            )}
+
             {/* Telegram User Display - Only show in Telegram */}
             {isInTelegram && telegramUser && (
               <div className="hidden md:flex items-center gap-2 bg-muted px-3 py-2 border-2 border-blue-500">
@@ -120,7 +142,11 @@ export function Navbar() {
             {/* $RISE Token Display - Only show when connected */}
             {address && (
               <>
-                <div className="hidden lg:flex items-center gap-1.5 md:gap-3 bg-muted px-2 py-1 md:px-4 md:py-2 border-2 border-primary">
+                <Link
+                  href="/profile"
+                  className="hidden md:flex items-center gap-1.5 md:gap-3 bg-muted px-2 py-1 md:px-4 md:py-2 border-2 border-primary hover:border-accent transition-colors cursor-pointer"
+                  title="View Profile"
+                >
                   <Coins className="w-3.5 h-3.5 md:w-5 md:h-5 text-accent" />
                   <div className="flex flex-col">
                     <span className="text-[10px] md:text-xs text-muted-foreground font-mono">$RISE</span>
@@ -129,10 +155,10 @@ export function Navbar() {
                     </span>
                   </div>
                   <Wallet className="w-3.5 h-3.5 md:w-5 md:h-5 text-primary" />
-                </div>
+                </Link>
                 <Link
                   href="/swap"
-                  className="hidden lg:flex items-center justify-center w-8 h-8 md:w-10 md:h-10 bg-accent hover:bg-accent/90 border-2 border-accent transition-colors"
+                  className="hidden md:flex items-center justify-center w-8 h-8 md:w-10 md:h-10 bg-accent hover:bg-accent/90 border-2 border-accent transition-colors"
                   title="Buy/Sell $RISE"
                 >
                   <Plus className="w-4 h-4 md:w-5 md:h-5 text-accent-foreground" />
