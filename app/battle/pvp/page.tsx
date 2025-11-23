@@ -237,8 +237,8 @@ function PVPBattlePageContent() {
       }
 
       if (data.battle) {
-        setCreatedRoom(data.battle)
-        setView('waiting')
+        // Navigate to the room page
+        router.push(`/battle/pvp/room/${data.battle.id}`)
       }
     } catch (error: any) {
       console.error('Error creating room:', error)
@@ -299,8 +299,8 @@ function PVPBattlePageContent() {
       }
 
       if (data.success && data.battle_id) {
-        // Navigate to battle arena
-        router.push(`/battle/arena/${data.battle_id}`)
+        // Navigate to the room page
+        router.push(`/battle/pvp/room/${data.battle_id}`)
       }
     } catch (error: any) {
       console.error('Error joining room:', error)
