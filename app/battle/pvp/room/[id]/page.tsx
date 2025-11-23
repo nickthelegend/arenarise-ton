@@ -34,7 +34,7 @@ interface Battle {
   current_turn: string | null
   status: string
   winner_id: string | null
-  room_code: string
+  room_code: string | null
   created_at: string
 }
 
@@ -162,13 +162,14 @@ export default function PVPRoomPage() {
 
     let connectionManager: ConnectionManager | null = null
     let unsubscribe: (() => void) | null = null
+    let pollInterval: NodeJS.Timeout | null = null
 
     const setupSubscription = () => {
       console.log(`Setting up subscription for battle: ${battleId}`)
       unsubscribe = subscribeToBattle(battleId, {
         onBattleUpdate: async (updatedBattle) => {
-          console.log('Battle update received:', updatedBattle)
-          setBattle(updatedBattle)
+          console.log('Battle update received via WebSocket:', updatedBattle)
+          setBattle(updatedBattle as any)
           
           // If opponent just joined
           if (updatedBattle.status === 'in_progress' && updatedBattle.player2_id && updatedBattle.beast2_id && !opponentBeast) {
@@ -222,6 +223,42 @@ export default function PVPRoomPage() {
       })
     }
 
+    // Polling fallback - check battle status every 2 seconds
+    const pollBattleStatus = async () => {
+      try {
+        const battleRes = await fetch(`/api/battles?battle_id=${battleId}`)
+        const battleData = await battleRes.json()
+        
+        if (battleData.battle) {
+          const battleInfo = battleData.battle
+          console.log('Battle status polled:', battleInfo.status, 'Player2:', battleInfo.player2_id)
+          
+          // Update battle state
+          setBattle(battleInfo)
+          setIsMyTurn(battleInfo.current_turn === userId)
+          
+          // If opponent joined and we don't have their beast yet
+          if (battleInfo.status === 'in_progress' && battleInfo.player2_id && battleInfo.beast2_id && !opponentBeast) {
+            const oppBeastId = isHost ? battleInfo.beast2_id : battleInfo.beast1_id
+            
+            if (oppBeastId) {
+              const oppBeastRes = await fetch(`/api/beasts/${oppBeastId}`)
+              const oppBeastData = await oppBeastRes.json()
+              
+              if (oppBeastData.beast) {
+                console.log('Opponent beast loaded via polling:', oppBeastData.beast.name)
+                setOpponentBeast(oppBeastData.beast)
+                setOpponentHp(oppBeastData.beast.hp)
+                addToBattleLog(`${oppBeastData.beast.name} joined the battle!`)
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error polling battle status:', error)
+      }
+    }
+
     // Set up connection manager for automatic reconnection
     connectionManager = new ConnectionManager(
       setupSubscription,
@@ -230,10 +267,14 @@ export default function PVPRoomPage() {
 
     // Initial subscription
     setupSubscription()
+    
+    // Start polling every 2 seconds as fallback
+    pollInterval = setInterval(pollBattleStatus, 2000)
 
     return () => {
       if (unsubscribe) unsubscribe()
       if (connectionManager) connectionManager.cleanup()
+      if (pollInterval) clearInterval(pollInterval)
     }
   }, [battleId, userId, isHost, opponentBeast, addToBattleLog])
 
@@ -438,7 +479,8 @@ export default function PVPRoomPage() {
         )}
 
         {/* Battle Active */}
-        {(isBattleActive || isBattleComplete) && opponentBeast && (
+        {(isBattleActive || isBattleComplete) && (
+          opponentBeast ? (
           <>
             {/* Battle Status */}
             <div className="text-center mb-6">
@@ -545,13 +587,12 @@ export default function PVPRoomPage() {
                       <Button
                         key={move.id}
                         variant="outline"
-                        className="h-auto flex-col items-start p-4 min-h-[120px]"
+                        className="h-auto flex-col items-start p-4"
                         onClick={() => handleMove(move)}
                         disabled={isExecutingMove}
                       >
                         <div className="font-bold mb-1">{move.name}</div>
                         <Badge variant="secondary" className="mb-2 text-xs">{move.type}</Badge>
-                        <div className="text-xs text-muted-foreground line-clamp-2">{move.description}</div>
                         <div className="text-sm font-bold text-accent mt-2">
                           {move.damage > 0 ? `${move.damage} DMG` : 'HEAL'}
                         </div>
@@ -587,6 +628,16 @@ export default function PVPRoomPage() {
               </div>
             )}
           </>
+          ) : (
+            <Card className="max-w-2xl mx-auto">
+              <CardContent className="p-12">
+                <div className="text-center space-y-4">
+                  <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
+                  <p className="text-lg font-mono">Loading opponent data...</p>
+                </div>
+              </CardContent>
+            </Card>
+          )
         )}
       </main>
     </div>
