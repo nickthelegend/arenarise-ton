@@ -1,4 +1,7 @@
-# ArenaRise ⚔️
+<div align="center">
+  <img src="public/showcase/logo.png" alt="ArenaRise Logo" width="120"/>
+  <h1>ArenaRise ⚔️</h1>
+</div>
 
 > **Built for TON | The Open Hack Hackathon 2025** 🏆
 
