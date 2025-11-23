@@ -691,61 +691,68 @@ export default function BattlePage() {
           </div>
         ) : (
           <div className="grid md:grid-cols-2 gap-4">
-            {availableRooms.map((room) => (
-              <Card key={room.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle className="text-lg">{room.beast1.name}</CardTitle>
-                      <Badge className="mt-2">
-                        {room.beast1.traits?.type || 'Unknown'}
+            {availableRooms.map((room) => {
+              // Skip rooms with missing beast data to prevent crashes
+              if (!room.beast1) return null
+
+              return (
+                <Card key={room.id} className="hover:shadow-lg transition-shadow">
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="text-lg">{room.beast1.name}</CardTitle>
+                        <Badge className="mt-2">
+                          {room.beast1.traits?.type || 'Unknown'}
+                        </Badge>
+                      </div>
+                      <Badge variant="secondary">
+                        LVL {room.beast1.level}
                       </Badge>
                     </div>
-                    <Badge variant="secondary">
-                      LVL {room.beast1.level}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-3 gap-2 text-xs font-mono">
-                    <div className="flex items-center gap-1">
-                      <Zap className="w-3 h-3 text-accent" />
-                      <span>ATK: {room.beast1.attack}</span>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="grid grid-cols-3 gap-2 text-xs font-mono">
+                      <div className="flex items-center gap-1">
+                        <Zap className="w-3 h-3 text-accent" />
+                        <span>ATK: {room.beast1.attack}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Shield className="w-3 h-3 text-blue-500" />
+                        <span>DEF: {room.beast1.defense}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Heart className="w-3 h-3 text-destructive" />
+                        <span>HP: {room.beast1.hp}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Shield className="w-3 h-3 text-blue-500" />
-                      <span>DEF: {room.beast1.defense}</span>
+                    <div className="pt-2 border-t">
+                      <p className="text-xs text-muted-foreground font-mono mb-2">
+                        Room Code: <span className="text-primary font-bold">{room.room_code}</span>
+                      </p>
+                      <Button
+                        className="w-full"
+                        disabled={isPvpLoading || room.player1_id === userId}
+                        onClick={() => handleJoinRoom(room.room_code)}
+                      >
+                        {room.player1_id === userId ? 'Your Room' : 'Join Battle'}
+                      </Button>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Heart className="w-3 h-3 text-destructive" />
-                      <span>HP: {room.beast1.hp}</span>
-                    </div>
-                  </div>
-                  <div className="pt-2 border-t">
-                    <p className="text-xs text-muted-foreground font-mono mb-2">
-                      Room Code: <span className="text-primary font-bold">{room.room_code}</span>
-                    </p>
-                    <Button
-                      className="w-full"
-                      disabled={isPvpLoading || room.player1_id === userId}
-                      onClick={() => handleJoinRoom(room.room_code)}
-                    >
-                      {room.player1_id === userId ? 'Your Room' : 'Join Battle'}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         )}
 
-        {pvpError && (
-          <div className="mt-4 p-3 bg-destructive/10 border border-destructive rounded text-destructive text-sm">
-            {pvpError}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+        {
+          pvpError && (
+            <div className="mt-4 p-3 bg-destructive/10 border border-destructive rounded text-destructive text-sm">
+              {pvpError}
+            </div>
+          )
+        }
+      </CardContent >
+    </Card >
   )
 
   const renderPvpJoinView = () => (
