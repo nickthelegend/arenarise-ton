@@ -142,56 +142,12 @@ function PVPBattlePageContent() {
     const setupSubscription = () => {
       unsubscribe = subscribeToBattle(createdRoom.id, {
         onBattleUpdate: async (battle) => {
-          // If player2 joined, fetch their beast info and display it
+          console.log('Battle update received:', battle)
+          // If player2 joined, navigate to arena
           if (battle.status === 'in_progress' && battle.player2_id && battle.beast2_id) {
-            try {
-              // Fetch opponent's beast information
-              const response = await fetch(`/api/beasts/${battle.beast2_id}`)
-              const data = await response.json()
-              
-              if (data.beast) {
-                setOpponentBeast(data.beast)
-                setShowOpponentJoined(true)
-                
-                // Auto-navigate to arena after showing opponent info (2 seconds delay)
-                setTimeout(() => {
-                  router.push(`/battle/arena/${battle.id}`)
-                }, 2000)
-              } else {
-                // If we can't fetch beast info, navigate immediately
-                router.push(`/battle/arena/${battle.id}`)
-              }
-            } catch (error) {
-              console.error('Error fetching opponent beast:', error)
-              // Navigate anyway if there's an error
-              router.push(`/battle/arena/${battle.id}`)
-            }
-          }
-        },
-        onPlayerJoined: async (battle) => {
-          // Fetch and display opponent's beast information
-          if (battle.beast2_id) {
-            try {
-              const response = await fetch(`/api/beasts/${battle.beast2_id}`)
-              const data = await response.json()
-              
-              if (data.beast) {
-                setOpponentBeast(data.beast)
-                setShowOpponentJoined(true)
-                
-                // Auto-navigate to arena after showing opponent info (2 seconds delay)
-                setTimeout(() => {
-                  router.push(`/battle/arena/${battle.id}`)
-                }, 2000)
-              } else {
-                // If we can't fetch beast info, navigate immediately
-                router.push(`/battle/arena/${battle.id}`)
-              }
-            } catch (error) {
-              console.error('Error fetching opponent beast:', error)
-              // Navigate anyway if there's an error
-              router.push(`/battle/arena/${battle.id}`)
-            }
+            console.log('Player 2 joined! Navigating to arena...')
+            // Navigate immediately to arena
+            router.push(`/battle/arena/${battle.id}`)
           }
         },
         onConnectionStatusChange: (status) => {

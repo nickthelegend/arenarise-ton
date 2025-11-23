@@ -537,7 +537,8 @@ export default function BattleArenaPage() {
   // Memoize available moves to prevent re-renders
   const availableMoves = useMemo(() => moves.slice(0, 6), [moves])
 
-  if (isPageLoading || !battle || !myBeast || (!opponentBeast && !enemy)) {
+  // Show loading only if we don't have basic battle data
+  if (isPageLoading || !battle || !myBeast) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 animate-in fade-in duration-700">
         <div className="flex flex-col items-center gap-4 bg-card p-8 rounded-lg border-4 border-primary animate-in zoom-in-95 duration-500">
@@ -549,6 +550,47 @@ export default function BattleArenaPage() {
             <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
             <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
           </div>
+        </div>
+      </div>
+    )
+  }
+  
+  // For PVP, show waiting state if opponent hasn't joined yet
+  if (!isPVE && !opponentBeast && battle.status === 'waiting') {
+    return (
+      <div className="min-h-screen">
+        <Navbar />
+        <main className="container mx-auto px-4 py-8">
+          <Card className="max-w-2xl mx-auto">
+            <CardHeader>
+              <CardTitle className="text-2xl text-center">Waiting for Opponent</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center space-y-6">
+                <div className="text-6xl">⏳</div>
+                <p className="text-lg text-muted-foreground font-mono">
+                  Waiting for opponent to join...
+                </p>
+                <div className="flex gap-2 justify-center">
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    )
+  }
+  
+  // For PVE, check if enemy data is loaded
+  if (isPVE && !enemy) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 animate-in fade-in duration-700">
+        <div className="flex flex-col items-center gap-4 bg-card p-8 rounded-lg border-4 border-primary animate-in zoom-in-95 duration-500">
+          <Loader2 className="w-16 h-16 animate-spin text-primary" />
+          <p className="text-lg font-bold font-mono text-primary animate-pulse">Loading Enemy Data...</p>
         </div>
       </div>
     )
