@@ -148,14 +148,21 @@ export default function HomePage() {
                       {address.slice(0, 4)}...{address.slice(-4)}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between p-2 bg-muted/50 rounded border border-border">
-                    <div className="flex items-center gap-2">
-                      <Coins className="w-4 h-4 text-accent" />
-                      <span className="text-xs font-mono text-muted-foreground">$RISE</span>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between p-2 bg-muted/50 rounded border border-border">
+                      <div className="flex items-center gap-2">
+                        <Coins className="w-4 h-4 text-accent" />
+                        <span className="text-xs font-mono text-muted-foreground">$RISE</span>
+                      </div>
+                      <span className="text-sm font-mono font-bold text-accent">
+                        {isLoadingBalance ? '...' : formatRiseBalance(riseBalance, 2)}
+                      </span>
                     </div>
-                    <span className="text-sm font-mono font-bold text-accent">
-                      {isLoadingBalance ? '...' : formatRiseBalance(riseBalance, 2)}
-                    </span>
+                    <Link href="/swap" className="w-full">
+                      <Button size="sm" variant="outline" className="w-full">
+                        Add more
+                      </Button>
+                    </Link>
                   </div>
                 </CardContent>
               </Card>

@@ -117,6 +117,16 @@ export function Navbar() {
               </Link>
             )}
 
+            {/* Wallet Address Display - Show when connected */}
+            {address && (
+              <div className="hidden md:flex items-center gap-2 bg-muted px-3 py-2 border-2 border-primary">
+                <Wallet className="w-4 h-4 text-primary" />
+                <span className="text-xs font-bold text-foreground font-mono">
+                  {address.slice(0, 4)}...{address.slice(-4)}
+                </span>
+              </div>
+            )}
+
             {/* Telegram User Display - Only show in Telegram */}
             {isInTelegram && telegramUser && (
               <div className="hidden md:flex items-center gap-2 bg-muted px-3 py-2 border-2 border-blue-500">
@@ -134,10 +144,12 @@ export function Navbar() {
               </div>
             )}
             
-            {/* TON Connect Button */}
-            <div className="ton-connect-button">
-              <TonConnectButton />
-            </div>
+            {/* TON Connect Button - Hidden when connected in Telegram */}
+            {!(isInTelegram && address) && (
+              <div className="ton-connect-button">
+                <TonConnectButton />
+              </div>
+            )}
 
             {/* $RISE Token Display - Only show when connected */}
             {address && (
@@ -154,7 +166,6 @@ export function Navbar() {
                       {isLoadingBalance ? '...' : formatRiseBalance(riseBalance, 2)}
                     </span>
                   </div>
-                  <Wallet className="w-3.5 h-3.5 md:w-5 md:h-5 text-primary" />
                 </Link>
                 <Link
                   href="/swap"
