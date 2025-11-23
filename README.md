@@ -2,7 +2,7 @@
 
 > **Built for TON | The Open Hack Hackathon 2025** 🏆
 
-![ArenaRise Banner](/icon.svg)
+![ArenaRise Banner](public/showcase/arenarise-banner.jpg)
 
 **ArenaRise** is a retro-style, 8-bit PVP battle game built on the **TON blockchain**. Collect unique beasts, stake $RISE tokens, and battle opponents in real-time for glory and rewards!
 
@@ -26,7 +26,24 @@ ArenaRise leverages the speed and scalability of the **The Open Network (TON)** 
 
 ---
 
-## 🛠️ Tech Stack
+## 📸 Showcase
+
+<div align="center">
+  <img src="public/showcase/profile.png" alt="User Profile" width="800"/>
+  <p><em>User Profile & Beast Collection</em></p>
+</div>
+
+<div align="center">
+  <div style="display: flex; justify-content: center; gap: 20px;">
+    <img src="public/showcase/token-swap.png" alt="Token Swap" width="45%"/>
+    <img src="public/showcase/lost-stake.png" alt="Battle Result" width="45%"/>
+  </div>
+  <p><em>Token Swaps & Battle Results</em></p>
+</div>
+
+---
+
+## �🛠️ Tech Stack
 
 - **Frontend**: Next.js 16, React 19, Tailwind CSS
 - **Blockchain**: TON Connect UI, @ton/core
