@@ -43,8 +43,10 @@ interface Battle {
   id: string
   player1_id: string
   player2_id: string | null
-  beast1_id: number
+  beast1_id: number | null
   beast2_id: number | null
+  beast1_locked: boolean
+  beast2_locked: boolean
   current_turn: string | null
   status: string
   winner_id: string | null
@@ -85,6 +87,12 @@ export default function PVPRoomPage() {
   const [battleOutcome, setBattleOutcome] = useState<'victory' | 'defeat' | null>(null)
   const [rewardAmount, setRewardAmount] = useState<number>(0)
   
+  // Beast selection states
+  const [availableBeasts, setAvailableBeasts] = useState<Beast[]>([])
+  const [selectedBeastForSelection, setSelectedBeastForSelection] = useState<number | null>(null)
+  const [beastSelectionLocked, setBeastSelectionLocked] = useState(false)
+  const [isSelectingBeast, setIsSelectingBeast] = useState(false)
+  
   // Track if animation has been shown to prevent multiple triggers
   const animationShownRef = useRef(false)
 
@@ -117,6 +125,11 @@ export default function PVPRoomPage() {
         }
 
         setUserId(currentUserId)
+        
+        // Fetch user's available beasts
+        const beastsRes = await fetch(`/api/beasts?wallet_address=${address}`)
+        const beastsData = await beastsRes.json()
+        setAvailableBeasts(beastsData.beasts || [])
 
         // Get battle details
         const battleRes = await fetch(`/api/battles?battle_id=${battleId}`)
@@ -128,6 +141,10 @@ export default function PVPRoomPage() {
           
           const isPlayer1 = battleInfo.player1_id === currentUserId
           setIsHost(isPlayer1)
+          
+          // Check if beast selection is locked
+          const myBeastLocked = isPlayer1 ? battleInfo.beast1_locked : battleInfo.beast2_locked
+          setBeastSelectionLocked(myBeastLocked || false)
           
           // Get battle moves to determine current HP state
           const movesHistoryRes = await fetch(`/api/battles/moves?battle_id=${battleId}`)
@@ -236,36 +253,60 @@ export default function PVPRoomPage() {
             console.error('Error syncing HP from moves:', error)
           }
           
-          // If opponent just joined
-          if (updatedBattle.status === 'in_progress' && updatedBattle.player2_id && updatedBattle.beast2_id && !opponentBeast) {
-            const oppBeastId = isHost ? updatedBattle.beast2_id : updatedBattle.beast1_id
-            
-            if (oppBeastId) {
-              try {
-                const oppBeastRes = await fetch(`/api/beasts/${oppBeastId}`)
-                const oppBeastData = await oppBeastRes.json()
+          // REQUIREMENT 4.3: Display notification when opponent joins
+          const opponentJustJoined = !battle?.player2_id && updatedBattle.player2_id
+          if (opponentJustJoined) {
+            addToBattleLog(`🎮 Opponent joined the room!`)
+            console.log('Opponent joined notification displayed')
+          }
+          
+          // REQUIREMENT 5.4: Listen for opponent beast selection and update state
+          const oppBeastId = isHost ? updatedBattle.beast2_id : updatedBattle.beast1_id
+          const oppBeastLocked = isHost ? updatedBattle.beast2_locked : updatedBattle.beast1_locked
+          const previousOppBeastId = isHost ? battle?.beast2_id : battle?.beast1_id
+          
+          // Check if opponent just selected their beast (beast_id changed from null to a value)
+          const opponentJustSelectedBeast = !previousOppBeastId && oppBeastId
+          
+          if (oppBeastId && !opponentBeast) {
+            try {
+              const oppBeastRes = await fetch(`/api/beasts/${oppBeastId}`)
+              const oppBeastData = await oppBeastRes.json()
+              
+              if (oppBeastData.beast) {
+                // Update opponent beast state
+                setOpponentBeast(oppBeastData.beast)
                 
-                if (oppBeastData.beast) {
-                  setOpponentBeast(oppBeastData.beast)
-                  
-                  // Get HP from moves if available
-                  const movesHistoryRes = await fetch(`/api/battles/moves?battle_id=${battleId}`)
-                  const movesHistoryData = await movesHistoryRes.json()
-                  const battleMoves = movesHistoryData.moves || []
-                  
-                  const movesAgainstOpp = battleMoves.filter((m: any) => m.player_id === userId)
-                  const lastMoveAgainstOpp = movesAgainstOpp[movesAgainstOpp.length - 1]
-                  const currentOppHp = lastMoveAgainstOpp?.target_hp_remaining ?? oppBeastData.beast.hp
-                  
-                  setOpponentHp(currentOppHp)
-                  addToBattleLog(`${oppBeastData.beast.name} joined the battle!`)
+                // Get HP from moves if available
+                const movesHistoryRes = await fetch(`/api/battles/moves?battle_id=${battleId}`)
+                const movesHistoryData = await movesHistoryRes.json()
+                const battleMoves = movesHistoryData.moves || []
+                
+                const movesAgainstOpp = battleMoves.filter((m: any) => m.player_id === userId)
+                const lastMoveAgainstOpp = movesAgainstOpp[movesAgainstOpp.length - 1]
+                const currentOppHp = lastMoveAgainstOpp?.target_hp_remaining ?? oppBeastData.beast.hp
+                
+                setOpponentHp(currentOppHp)
+                
+                // Display notification for opponent beast selection
+                if (opponentJustSelectedBeast) {
+                  addToBattleLog(`⚔️ Opponent selected ${oppBeastData.beast.name}!`)
+                  console.log('Opponent beast selection notification displayed')
                 }
-              } catch (error) {
-                console.error('Error fetching opponent beast:', error)
+                
+                // REQUIREMENT 5.4: Trigger battle start when both beasts locked
+                const myBeastLocked = isHost ? updatedBattle.beast1_locked : updatedBattle.beast2_locked
+                if (oppBeastLocked && myBeastLocked && updatedBattle.status === 'in_progress') {
+                  addToBattleLog(`🔥 Both beasts are ready! Battle starting...`)
+                  console.log('Battle start triggered - both beasts locked')
+                }
               }
+            } catch (error) {
+              console.error('Error fetching opponent beast:', error)
             }
           }
           
+          // Update turn state
           setIsMyTurn(updatedBattle.current_turn === userId)
           
           // Check if battle completed and show outcome animation (only once)
@@ -384,25 +425,43 @@ export default function PVPRoomPage() {
             }, 500)
           }
           
-          // If opponent joined and we don't have their beast yet
-          if (battleInfo.status === 'in_progress' && battleInfo.player2_id && battleInfo.beast2_id && !opponentBeast) {
-            const oppBeastId = isHost ? battleInfo.beast2_id : battleInfo.beast1_id
+          // REQUIREMENT 4.3: Display notification when opponent joins (polling fallback)
+          const opponentJustJoined = !battle?.player2_id && battleInfo.player2_id
+          if (opponentJustJoined) {
+            addToBattleLog(`🎮 Opponent joined the room!`)
+            console.log('Opponent joined notification displayed (polling)')
+          }
+          
+          // REQUIREMENT 5.4: Listen for opponent beast selection and update state (polling fallback)
+          const oppBeastId = isHost ? battleInfo.beast2_id : battleInfo.beast1_id
+          const oppBeastLocked = isHost ? battleInfo.beast2_locked : battleInfo.beast1_locked
+          
+          if (oppBeastId && !opponentBeast) {
+            const oppBeastRes = await fetch(`/api/beasts/${oppBeastId}`)
+            const oppBeastData = await oppBeastRes.json()
             
-            if (oppBeastId) {
-              const oppBeastRes = await fetch(`/api/beasts/${oppBeastId}`)
-              const oppBeastData = await oppBeastRes.json()
+            if (oppBeastData.beast) {
+              console.log('Opponent beast loaded via polling:', oppBeastData.beast.name)
               
-              if (oppBeastData.beast) {
-                console.log('Opponent beast loaded via polling:', oppBeastData.beast.name)
-                setOpponentBeast(oppBeastData.beast)
-                
-                // Set initial HP or HP from moves
-                const movesAgainstOpp = battleMoves.filter((m: any) => m.player_id === userId)
-                const lastMoveAgainstOpp = movesAgainstOpp[movesAgainstOpp.length - 1]
-                const currentOppHp = lastMoveAgainstOpp?.target_hp_remaining ?? oppBeastData.beast.hp
-                
-                setOpponentHp(currentOppHp)
-                addToBattleLog(`${oppBeastData.beast.name} joined the battle!`)
+              // Update opponent beast state
+              setOpponentBeast(oppBeastData.beast)
+              
+              // Set initial HP or HP from moves
+              const movesAgainstOpp = battleMoves.filter((m: any) => m.player_id === userId)
+              const lastMoveAgainstOpp = movesAgainstOpp[movesAgainstOpp.length - 1]
+              const currentOppHp = lastMoveAgainstOpp?.target_hp_remaining ?? oppBeastData.beast.hp
+              
+              setOpponentHp(currentOppHp)
+              
+              // Display notification for opponent beast selection
+              addToBattleLog(`⚔️ Opponent selected ${oppBeastData.beast.name}!`)
+              console.log('Opponent beast selection notification displayed (polling)')
+              
+              // REQUIREMENT 5.4: Trigger battle start when both beasts locked (polling fallback)
+              const myBeastLocked = isHost ? battleInfo.beast1_locked : battleInfo.beast2_locked
+              if (oppBeastLocked && myBeastLocked && battleInfo.status === 'in_progress') {
+                addToBattleLog(`🔥 Both beasts are ready! Battle starting...`)
+                console.log('Battle start triggered - both beasts locked (polling)')
               }
             }
           }
@@ -509,6 +568,68 @@ export default function PVPRoomPage() {
     }
   }
 
+  const handleBeastSelection = async () => {
+    if (!selectedBeastForSelection || !userId || !battle) return
+
+    // Client-side validation: Check if beast selection is already locked
+    if (beastSelectionLocked) {
+      addToBattleLog('Error: Beast selection is already locked')
+      return
+    }
+
+    // Client-side validation: Check if battle is still in valid state
+    if (battle.status === 'completed') {
+      addToBattleLog('Error: Cannot select beast for completed battle')
+      return
+    }
+
+    setIsSelectingBeast(true)
+
+    try {
+      const response = await fetch(`/api/battles/rooms/${battle.id}/select-beast`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          player_id: userId,
+          beast_id: selectedBeastForSelection
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to select beast')
+      }
+
+      // Update local state with selected beast
+      const selectedBeast = availableBeasts.find(b => b.id === selectedBeastForSelection)
+      if (selectedBeast) {
+        setMyBeast(selectedBeast)
+        setMyBeastHp(selectedBeast.hp)
+      }
+
+      // Set beast selection as locked
+      setBeastSelectionLocked(true)
+
+      // Update battle state
+      setBattle(data.battle)
+
+      // Add to battle log
+      addToBattleLog(`You selected ${selectedBeast?.name}!`)
+
+      // If battle started (both beasts selected), update turn state
+      if (data.battle.status === 'in_progress') {
+        setIsMyTurn(data.battle.current_turn === userId)
+        addToBattleLog('Battle starting! Both beasts are ready!')
+      }
+    } catch (error: any) {
+      console.error('Error selecting beast:', error)
+      addToBattleLog(`Error: ${error.message}`)
+    } finally {
+      setIsSelectingBeast(false)
+    }
+  }
+
   const handleCancelRoom = async () => {
     if (!battle) return
 
@@ -566,31 +687,192 @@ export default function PVPRoomPage() {
           </div>
         </div>
 
+        {/* Beast Selection View */}
+        {isWaiting && !myBeast && (
+          <Card className="max-w-4xl mx-auto">
+            <CardHeader>
+              <CardTitle className="text-2xl text-center flex items-center justify-center gap-2">
+                Select Your Beast
+                {beastSelectionLocked && (
+                  <Badge variant="default" className="bg-green-600">
+                    🔒 Locked
+                  </Badge>
+                )}
+              </CardTitle>
+              <p className="text-center text-muted-foreground text-sm mt-2">
+                {beastSelectionLocked ? '🔒 Beast selection is locked' : 'Choose your fighter for this battle'}
+              </p>
+            </CardHeader>
+            <CardContent>
+              {/* Show opponent's beast if already selected */}
+              {opponentBeast && (
+                <div className="mb-6 p-4 bg-muted rounded-lg border-2 border-primary/20">
+                  <p className="text-sm text-muted-foreground font-mono mb-3 text-center">
+                    Opponent's Beast
+                  </p>
+                  <div className="flex items-center justify-center gap-4">
+                    {(opponentBeast as any).image_ipfs_uri && (
+                      <div className="w-24 h-24 border-2 border-primary bg-muted flex items-center justify-center overflow-hidden">
+                        <img 
+                          src={convertIpfsUrl((opponentBeast as any).image_ipfs_uri)} 
+                          alt={opponentBeast.name}
+                          className="w-full h-full object-cover pixelated"
+                        />
+                      </div>
+                    )}
+                    <div className="text-left">
+                      <p className="font-bold font-mono text-lg">{opponentBeast.name}</p>
+                      <Badge variant="secondary" className="mt-1">LVL {opponentBeast.level}</Badge>
+                      <div className="flex gap-3 text-xs font-mono mt-2">
+                        <div className="flex items-center gap-1">
+                          <Zap className="w-3 h-3 text-accent" />
+                          <span>{opponentBeast.attack}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Shield className="w-3 h-3 text-blue-500" />
+                          <span>{opponentBeast.defense}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Heart className="w-3 h-3 text-destructive" />
+                          <span>{opponentBeast.hp}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Beast selection cards */}
+              {availableBeasts.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground mb-4">You don't have any beasts yet!</p>
+                  <Button onClick={() => router.push('/inventory')}>
+                    Go to Inventory
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                    {availableBeasts.map((beast) => (
+                      <Card
+                        key={beast.id}
+                        className={`transition-all ${
+                          beastSelectionLocked 
+                            ? 'opacity-50 cursor-not-allowed' 
+                            : 'cursor-pointer hover:border-primary hover:shadow-lg'
+                        } ${
+                          selectedBeastForSelection === beast.id
+                            ? 'border-primary border-2 bg-primary/5 shadow-xl'
+                            : 'border-border'
+                        }`}
+                        onClick={() => !beastSelectionLocked && setSelectedBeastForSelection(beast.id)}
+                      >
+                        <CardContent className="p-4">
+                          {(beast as any).image_ipfs_uri && (
+                            <div className="w-full aspect-square mb-3 border-2 border-primary bg-muted flex items-center justify-center overflow-hidden rounded-lg">
+                              <img 
+                                src={convertIpfsUrl((beast as any).image_ipfs_uri)} 
+                                alt={beast.name}
+                                className="w-full h-full object-cover pixelated"
+                              />
+                            </div>
+                          )}
+                          <p className="font-bold font-mono text-lg mb-1">{beast.name}</p>
+                          <Badge variant="secondary" className="mb-2">LVL {beast.level}</Badge>
+                          <div className="grid grid-cols-3 gap-2 text-xs font-mono">
+                            <div className="flex items-center gap-1">
+                              <Zap className="w-3 h-3 text-accent" />
+                              <span>{beast.attack}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Shield className="w-3 h-3 text-blue-500" />
+                              <span>{beast.defense}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Heart className="w-3 h-3 text-destructive" />
+                              <span>{beast.hp}</span>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+
+                  {/* Confirm selection button */}
+                  <div className="text-center">
+                    <Button
+                      size="lg"
+                      disabled={!selectedBeastForSelection || isSelectingBeast || beastSelectionLocked}
+                      onClick={handleBeastSelection}
+                    >
+                      {beastSelectionLocked ? (
+                        <>
+                          🔒 Beast Locked
+                        </>
+                      ) : isSelectingBeast ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Confirming...
+                        </>
+                      ) : (
+                        'Confirm Beast Selection'
+                      )}
+                    </Button>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Waiting for Opponent */}
-        {isWaiting && (
+        {isWaiting && myBeast && (
           <Card className="max-w-2xl mx-auto">
             <CardHeader>
-              <CardTitle className="text-2xl text-center">Waiting for Opponent</CardTitle>
+              <CardTitle className="text-2xl text-center flex items-center justify-center gap-2">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                Waiting for Opponent
+              </CardTitle>
+              <p className="text-center text-muted-foreground text-sm mt-2">
+                Share the room code below to invite your opponent
+              </p>
             </CardHeader>
             <CardContent>
               <div className="text-center space-y-6">
-                <div className="bg-muted p-6 rounded-lg border-2 border-primary/20">
-                  <p className="text-sm text-muted-foreground mb-2 font-mono">Room Code</p>
-                  <div className="flex items-center justify-center gap-3">
-                    <p className="text-4xl font-bold font-mono tracking-wider text-primary">
+                {/* Room Code Section - Prominently Displayed */}
+                <div className="bg-gradient-to-br from-primary/10 to-primary/5 p-8 rounded-lg border-2 border-primary shadow-lg">
+                  <p className="text-sm text-muted-foreground mb-3 font-mono uppercase tracking-wide">
+                    Battle Room Code
+                  </p>
+                  <div className="flex items-center justify-center gap-3 mb-4">
+                    <p className="text-5xl font-bold font-mono tracking-widest text-primary drop-shadow-lg">
                       {battle?.room_code}
                     </p>
-                    <Button size="sm" variant="outline" onClick={handleCopyRoomCode}>
-                      {copiedCode ? <>✓ Copied</> : <Copy className="w-4 h-4" />}
-                    </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-3 font-mono">
-                    Share this code with your opponent
-                  </p>
                   
-                  <div className="mt-4 pt-4 border-t border-border">
+                  {/* Action Buttons */}
+                  <div className="flex flex-col sm:flex-row gap-3 mt-6">
+                    <Button 
+                      size="lg" 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={handleCopyRoomCode}
+                    >
+                      {copiedCode ? (
+                        <>
+                          <span className="text-green-500 mr-2">✓</span>
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4 mr-2" />
+                          Copy Code
+                        </>
+                      )}
+                    </Button>
                     <Button
-                      className="w-full"
+                      size="lg"
+                      className="flex-1"
                       variant="default"
                       onClick={() => shareBattleToTelegram(battle?.room_code || '', battle?.id)}
                     >
@@ -600,47 +882,77 @@ export default function PVPRoomPage() {
                   </div>
                 </div>
 
+                {/* Selected Beast Display with Locked Indicator */}
                 {myBeast && (
-                  <div className="bg-card p-4 rounded-lg border-2 border-primary/20">
-                    <p className="text-xs text-muted-foreground font-mono mb-2">Your Beast</p>
-                    {(myBeast as any).image_ipfs_uri && (
-                      <div className="w-32 h-32 mx-auto mb-3 border-2 border-primary bg-muted flex items-center justify-center overflow-hidden">
-                        <img 
-                          src={convertIpfsUrl((myBeast as any).image_ipfs_uri)} 
-                          alt={myBeast.name}
-                          className="w-full h-full object-cover pixelated"
-                        />
-                      </div>
-                    )}
-                    <p className="font-bold font-mono text-lg">{myBeast.name}</p>
-                    <Badge variant="secondary" className="mt-2">LVL {myBeast.level}</Badge>
-                    <div className="grid grid-cols-3 gap-2 text-xs font-mono mt-3">
-                      <div className="flex items-center gap-1 justify-center">
-                        <Zap className="w-3 h-3 text-accent" />
-                        <span>{myBeast.attack}</span>
-                      </div>
-                      <div className="flex items-center gap-1 justify-center">
-                        <Shield className="w-3 h-3 text-blue-500" />
-                        <span>{myBeast.defense}</span>
-                      </div>
-                      <div className="flex items-center gap-1 justify-center">
-                        <Heart className="w-3 h-3 text-destructive" />
-                        <span>{myBeast.hp}</span>
+                  <div className="bg-card p-6 rounded-lg border-2 border-green-600/50 shadow-md relative">
+                    <div className="flex items-center justify-center gap-2 mb-4">
+                      <p className="text-sm font-mono font-semibold text-muted-foreground">Your Selected Beast</p>
+                      {beastSelectionLocked && (
+                        <Badge variant="default" className="bg-green-600 text-white">
+                          🔒 Locked
+                        </Badge>
+                      )}
+                    </div>
+                    
+                    <div className="flex flex-col items-center">
+                      {(myBeast as any).image_ipfs_uri && (
+                        <div className="w-40 h-40 mb-4 border-4 border-green-600 bg-muted flex items-center justify-center overflow-hidden rounded-lg shadow-lg">
+                          <img 
+                            src={convertIpfsUrl((myBeast as any).image_ipfs_uri)} 
+                            alt={myBeast.name}
+                            className="w-full h-full object-cover pixelated"
+                          />
+                        </div>
+                      )}
+                      <p className="font-bold font-mono text-xl mb-2">{myBeast.name}</p>
+                      <Badge variant="secondary" className="mb-3">LVL {myBeast.level}</Badge>
+                      
+                      {/* Beast Stats */}
+                      <div className="flex gap-6 text-sm font-mono">
+                        <div className="flex items-center gap-2">
+                          <Zap className="w-4 h-4 text-accent" />
+                          <span className="font-semibold">ATK:</span>
+                          <span>{myBeast.attack}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Shield className="w-4 h-4 text-blue-500" />
+                          <span className="font-semibold">DEF:</span>
+                          <span>{myBeast.defense}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Heart className="w-4 h-4 text-destructive" />
+                          <span className="font-semibold">HP:</span>
+                          <span>{myBeast.hp}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
                 )}
 
-                <div className="flex gap-2 justify-center">
-                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                {/* Waiting Animation */}
+                <div className="py-4">
+                  <p className="text-sm text-muted-foreground mb-3 font-mono">
+                    Waiting for opponent to join...
+                  </p>
+                  <div className="flex gap-2 justify-center">
+                    <div className="w-3 h-3 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-3 h-3 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-3 h-3 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                  </div>
                 </div>
 
-                <Button variant="outline" onClick={handleCancelRoom}>
-                  <X className="w-4 h-4 mr-2" />
-                  Cancel Room
-                </Button>
+                {/* Cancel Room Button */}
+                <div className="pt-4 border-t border-border">
+                  <Button 
+                    variant="outline" 
+                    size="lg"
+                    className="w-full sm:w-auto"
+                    onClick={handleCancelRoom}
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Cancel Room
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -666,7 +978,12 @@ export default function PVPRoomPage() {
             {/* Battle Arena */}
             <div className="grid md:grid-cols-2 gap-6 mb-6">
               {/* My Beast */}
-              <Card className="border-primary">
+              <Card className="border-primary relative">
+                {beastSelectionLocked && (
+                  <Badge variant="default" className="absolute top-2 right-2 bg-green-600 z-10">
+                    🔒 Locked
+                  </Badge>
+                )}
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <div>

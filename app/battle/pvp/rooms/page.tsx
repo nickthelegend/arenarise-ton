@@ -34,31 +34,17 @@ interface Room {
   }
 }
 
-interface Beast {
-  id: number
-  name: string
-  hp: number
-  max_hp: number
-  attack: number
-  defense: number
-  speed: number
-  level: number
-  traits: any
-}
-
 export default function RoomsListPage() {
   const router = useRouter()
   const address = useTonAddress()
   
   const [userId, setUserId] = useState<string | null>(null)
-  const [myBeasts, setMyBeasts] = useState<Beast[]>([])
-  const [selectedBeast, setSelectedBeast] = useState<Beast | null>(null)
   const [availableRooms, setAvailableRooms] = useState<Room[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isJoining, setIsJoining] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showBeastSelector, setShowBeastSelector] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'reconnecting'>('connected')
+  const [myBeasts, setMyBeasts] = useState<any[]>([])
   
   // Redirect if not connected
   useEffect(() => {
@@ -80,16 +66,10 @@ export default function RoomsListPage() {
         if (userData.user) {
           setUserId(userData.user.id)
           
-          // Get user's beasts
+          // Get user's beasts for validation
           const beastsRes = await fetch(`/api/beasts?wallet_address=${address}`)
           const beastsData = await beastsRes.json()
-          const beasts = beastsData.beasts || []
-          setMyBeasts(beasts)
-          
-          // Auto-select first beast if available
-          if (beasts.length > 0) {
-            setSelectedBeast(beasts[0])
-          }
+          setMyBeasts(beastsData.beasts || [])
         }
       } catch (error) {
         console.error('Error fetching user data:', error)
@@ -141,8 +121,14 @@ export default function RoomsListPage() {
   }, [])
 
   const handleJoinRoom = async (roomCode: string) => {
-    if (!selectedBeast || !userId) {
-      setShowBeastSelector(true)
+    if (!userId) {
+      setError('User not found. Please reconnect your wallet.')
+      return
+    }
+
+    // Client-side validation: Check if user has beasts
+    if (myBeasts.length === 0) {
+      setError('You need at least one beast to join a battle. Visit your inventory to get started!')
       return
     }
 
@@ -155,8 +141,7 @@ export default function RoomsListPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           room_code: roomCode,
-          player_id: userId,
-          beast_id: selectedBeast.id
+          player_id: userId
         })
       })
 
@@ -167,8 +152,8 @@ export default function RoomsListPage() {
       }
 
       if (data.success && data.battle_id) {
-        // Navigate to battle arena
-        router.push(`/battle/arena/${data.battle_id}`)
+        // Navigate to room page for beast selection
+        router.push(`/battle/pvp/room/${data.battle_id}`)
       }
     } catch (error: any) {
       console.error('Error joining room:', error)
@@ -227,95 +212,6 @@ export default function RoomsListPage() {
             </p>
           </div>
         </div>
-
-        {/* Beast Selector */}
-        {myBeasts.length > 0 && (
-          <Card className="max-w-4xl mx-auto mb-6">
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <CardTitle className="text-lg">Your Selected Beast</CardTitle>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowBeastSelector(!showBeastSelector)}
-                >
-                  {showBeastSelector ? 'Hide' : 'Change Beast'}
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {selectedBeast && !showBeastSelector && (
-                <div className="flex items-center gap-4 p-3 bg-muted rounded-lg">
-                  <div className="flex-1">
-                    <p className="font-bold font-mono">{selectedBeast.name}</p>
-                    <Badge variant="secondary" className="mt-1">LVL {selectedBeast.level}</Badge>
-                  </div>
-                  <div className="flex gap-4 text-xs font-mono">
-                    <div className="flex items-center gap-1">
-                      <Zap className="w-3 h-3 text-accent" />
-                      <span>{selectedBeast.attack}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Shield className="w-3 h-3 text-blue-500" />
-                      <span>{selectedBeast.defense}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Heart className="w-3 h-3 text-destructive" />
-                      <span>{selectedBeast.hp}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {showBeastSelector && (
-                <div className="grid md:grid-cols-2 gap-3">
-                  {myBeasts.map((beast) => (
-                    <Card
-                      key={beast.id}
-                      className={`cursor-pointer transition-all hover:scale-105 ${
-                        selectedBeast?.id === beast.id ? 'ring-2 ring-primary' : ''
-                      }`}
-                      onClick={() => {
-                        setSelectedBeast(beast)
-                        setShowBeastSelector(false)
-                      }}
-                    >
-                      <CardHeader className="pb-2">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <CardTitle className="text-base">{beast.name}</CardTitle>
-                            <Badge className="mt-1 text-xs">
-                              {beast.traits?.type || 'Unknown'}
-                            </Badge>
-                          </div>
-                          <Badge variant="secondary" className="text-xs">
-                            LVL {beast.level}
-                          </Badge>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-3 gap-2 text-xs font-mono">
-                          <div className="flex items-center gap-1">
-                            <Zap className="w-3 h-3 text-accent" />
-                            <span>{beast.attack}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Shield className="w-3 h-3 text-blue-500" />
-                            <span>{beast.defense}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Heart className="w-3 h-3 text-destructive" />
-                            <span>{beast.hp}</span>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
 
         {/* Error Message */}
         {error && (
@@ -388,7 +284,7 @@ export default function RoomsListPage() {
                         </p>
                         <Button
                           className="w-full transition-all duration-300 hover:scale-105 active:scale-95"
-                          disabled={!selectedBeast || isJoining || room.player1_id === userId}
+                          disabled={isJoining || room.player1_id === userId}
                           onClick={() => handleJoinRoom(room.room_code)}
                         >
                           {isJoining ? (
@@ -413,22 +309,6 @@ export default function RoomsListPage() {
             )}
           </CardContent>
         </Card>
-
-        {/* No Beast Warning */}
-        {myBeasts.length === 0 && (
-          <Card className="max-w-4xl mx-auto mt-6">
-            <CardContent className="pt-6">
-              <div className="text-center py-6">
-                <p className="text-muted-foreground mb-4">
-                  You need a beast to join battles!
-                </p>
-                <Button onClick={() => router.push('/inventory')}>
-                  Go to Inventory
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </main>
     </div>
   )

@@ -48,8 +48,10 @@ export interface Battle {
   id: string
   player1_id: string
   player2_id: string | null
-  beast1_id: number
+  beast1_id: number | null
   beast2_id: number | null
+  beast1_locked?: boolean
+  beast2_locked?: boolean
   winner_id: string | null
   status: 'waiting' | 'in_progress' | 'completed'
   current_turn: string | null

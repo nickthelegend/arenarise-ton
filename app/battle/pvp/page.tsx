@@ -6,11 +6,9 @@ import { Navbar } from '@/components/navbar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/8bitcn/card'
 import { Button } from '@/components/8bitcn/button'
 import { Badge } from '@/components/8bitcn/badge'
-import { HealthBar } from '@/components/8bitcn/health-bar'
 import { useTonAddress } from '@tonconnect/ui-react'
-import { subscribeToBattle, subscribeToRooms, ConnectionManager } from '@/lib/realtime-manager'
-import { shareBattleToTelegram } from '@/lib/telegram-share'
-import { Swords, Zap, Shield, Heart, Loader2, Copy, X, Users, Hash, Wifi, WifiOff, Send } from 'lucide-react'
+import { subscribeToRooms, ConnectionManager } from '@/lib/realtime-manager'
+import { Swords, Zap, Shield, Heart, Loader2, Users, Hash } from 'lucide-react'
 
 interface Beast {
   id: number
@@ -22,19 +20,6 @@ interface Beast {
   speed: number
   level: number
   traits: any
-}
-
-interface Battle {
-  id: string
-  player1_id: string
-  player2_id: string | null
-  beast1_id: number
-  beast2_id: number | null
-  current_turn: string | null
-  status: string
-  winner_id: string | null
-  room_code: string
-  created_at: string
 }
 
 interface Room {
@@ -61,7 +46,7 @@ interface Room {
   }
 }
 
-type ViewState = 'select' | 'waiting' | 'browse' | 'join'
+type ViewState = 'select' | 'browse' | 'join'
 
 function PVPBattlePageContent() {
   const router = useRouter()
@@ -70,17 +55,11 @@ function PVPBattlePageContent() {
   
   const [userId, setUserId] = useState<string | null>(null)
   const [myBeasts, setMyBeasts] = useState<Beast[]>([])
-  const [selectedBeast, setSelectedBeast] = useState<Beast | null>(null)
   const [view, setView] = useState<ViewState>('select')
-  const [createdRoom, setCreatedRoom] = useState<Battle | null>(null)
   const [availableRooms, setAvailableRooms] = useState<Room[]>([])
   const [roomCodeInput, setRoomCodeInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [copiedCode, setCopiedCode] = useState(false)
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'reconnecting'>('connected')
-  const [opponentBeast, setOpponentBeast] = useState<Beast | null>(null)
-  const [showOpponentJoined, setShowOpponentJoined] = useState(false)
   
   // Redirect if not connected
   useEffect(() => {
@@ -102,20 +81,11 @@ function PVPBattlePageContent() {
         if (userData.user) {
           setUserId(userData.user.id)
           
-          // Get user's beasts - use wallet_address parameter
+          // Get user's beasts - use wallet_address parameter (for validation only)
           const beastsRes = await fetch(`/api/beasts?wallet_address=${address}`)
           const beastsData = await beastsRes.json()
           const beasts = beastsData.beasts || []
           setMyBeasts(beasts)
-          
-          // Pre-select beast from URL parameter if provided
-          const beastIdParam = searchParams.get('beastId')
-          if (beastIdParam && beasts.length > 0) {
-            const preSelectedBeast = beasts.find((b: Beast) => b.id === parseInt(beastIdParam))
-            if (preSelectedBeast) {
-              setSelectedBeast(preSelectedBeast)
-            }
-          }
 
           // Check for join parameter in URL
           const joinCode = searchParams.get('join')
@@ -132,49 +102,7 @@ function PVPBattlePageContent() {
     fetchUserData()
   }, [address, searchParams])
 
-  // Subscribe to battle updates when in waiting view
-  useEffect(() => {
-    if (view !== 'waiting' || !createdRoom) return
 
-    let connectionManager: ConnectionManager | null = null
-    let unsubscribe: (() => void) | null = null
-
-    const setupSubscription = () => {
-      unsubscribe = subscribeToBattle(createdRoom.id, {
-        onBattleUpdate: async (battle) => {
-          console.log('Battle update received:', battle)
-          // If player2 joined, navigate to arena
-          if (battle.status === 'in_progress' && battle.player2_id && battle.beast2_id) {
-            console.log('Player 2 joined! Navigating to arena...')
-            // Navigate immediately to arena
-            router.push(`/battle/arena/${battle.id}`)
-          }
-        },
-        onConnectionStatusChange: (status) => {
-          setConnectionStatus(status)
-          if (status === 'connected' && connectionManager) {
-            connectionManager.handleConnect()
-          } else if (status === 'disconnected' && connectionManager) {
-            connectionManager.handleDisconnect()
-          }
-        }
-      })
-    }
-
-    // Set up connection manager for automatic reconnection
-    connectionManager = new ConnectionManager(
-      setupSubscription,
-      setConnectionStatus
-    )
-
-    // Initial subscription
-    setupSubscription()
-
-    return () => {
-      if (unsubscribe) unsubscribe()
-      if (connectionManager) connectionManager.cleanup()
-    }
-  }, [view, createdRoom, router])
 
   // Subscribe to available rooms when in browse view
   useEffect(() => {
@@ -189,7 +117,6 @@ function PVPBattlePageContent() {
           setAvailableRooms(rooms)
         },
         onConnectionStatusChange: (status) => {
-          setConnectionStatus(status)
           if (status === 'connected' && connectionManager) {
             connectionManager.handleConnect()
           } else if (status === 'disconnected' && connectionManager) {
@@ -202,7 +129,7 @@ function PVPBattlePageContent() {
     // Set up connection manager for automatic reconnection
     connectionManager = new ConnectionManager(
       setupSubscription,
-      setConnectionStatus
+      () => {} // No need to track connection status in UI
     )
 
     // Initial subscription
@@ -215,7 +142,13 @@ function PVPBattlePageContent() {
   }, [view])
 
   const handleCreateRoom = async () => {
-    if (!selectedBeast || !userId) return
+    if (!userId) return
+
+    // Client-side validation: Check if user has beasts
+    if (myBeasts.length === 0) {
+      setError('You need at least one beast to battle. Visit your inventory to get started!')
+      return
+    }
 
     setIsLoading(true)
     setError(null)
@@ -225,8 +158,7 @@ function PVPBattlePageContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          player_id: userId,
-          beast_id: selectedBeast.id
+          player_id: userId
         })
       })
 
@@ -248,35 +180,30 @@ function PVPBattlePageContent() {
     }
   }
 
-  const handleCancelRoom = async () => {
-    if (!createdRoom) return
 
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const response = await fetch(`/api/battles/rooms/${createdRoom.id}`, {
-        method: 'DELETE'
-      })
-
-      const data = await response.json()
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to cancel room')
-      }
-
-      setCreatedRoom(null)
-      setView('select')
-    } catch (error: any) {
-      console.error('Error canceling room:', error)
-      setError(error.message || 'Failed to cancel room')
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   const handleJoinRoom = async (roomCode: string) => {
-    if (!selectedBeast || !userId) return
+    if (!userId) return
+
+    // Client-side validation: Check if user has beasts
+    if (myBeasts.length === 0) {
+      setError('You need at least one beast to join a battle. Visit your inventory to get started!')
+      return
+    }
+
+    // Client-side validation: Validate room code format
+    const trimmedCode = roomCode.trim().toUpperCase()
+    if (trimmedCode.length !== 6) {
+      setError('Room code must be exactly 6 characters.')
+      return
+    }
+
+    // Validate room code contains only valid characters (alphanumeric, no ambiguous chars)
+    const validChars = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]+$/
+    if (!validChars.test(trimmedCode)) {
+      setError('Invalid room code format. Please check the code and try again.')
+      return
+    }
 
     setIsLoading(true)
     setError(null)
@@ -286,9 +213,8 @@ function PVPBattlePageContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          room_code: roomCode,
-          player_id: userId,
-          beast_id: selectedBeast.id
+          room_code: trimmedCode,
+          player_id: userId
         })
       })
 
@@ -310,13 +236,7 @@ function PVPBattlePageContent() {
     }
   }
 
-  const handleCopyRoomCode = () => {
-    if (createdRoom?.room_code) {
-      navigator.clipboard.writeText(createdRoom.room_code)
-      setCopiedCode(true)
-      setTimeout(() => setCopiedCode(false), 2000)
-    }
-  }
+
 
   if (!address) {
     return null // Will redirect in useEffect
@@ -325,66 +245,16 @@ function PVPBattlePageContent() {
   // Render different views based on state
   const renderSelectView = () => (
     <div className="space-y-6">
-      {/* Action Buttons at the Top */}
+      {/* Action Buttons */}
       <Card className="max-w-4xl mx-auto">
         <CardHeader>
           <CardTitle className="text-2xl text-center">Choose Your Action</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Button
-              size="lg"
-              disabled={!selectedBeast || isLoading}
-              onClick={handleCreateRoom}
-              className="transition-all duration-300 hover:scale-105 active:scale-95"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <Swords className="w-5 h-5 mr-2" />
-                  Create Room
-                </>
-              )}
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              onClick={() => setView('browse')}
-            >
-              <Users className="w-5 h-5 mr-2" />
-              Browse Rooms
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              onClick={() => setView('join')}
-            >
-              <Hash className="w-5 h-5 mr-2" />
-              Join by Code
-            </Button>
-          </div>
-          {!selectedBeast && (
-            <p className="text-sm text-muted-foreground mt-3 text-center font-mono animate-in fade-in duration-500">
-              Select a beast below to begin
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Beast Selection */}
-      <Card className="max-w-4xl mx-auto">
-        <CardHeader>
-          <CardTitle className="text-2xl">Select Your Beast</CardTitle>
-        </CardHeader>
-        <CardContent>
           {myBeasts.length === 0 ? (
-            <div className="text-center py-12">
+            <div className="text-center py-8">
               <p className="text-muted-foreground mb-4">
-                You don't have any beasts yet!
+                You need at least one beast to battle. Visit your inventory to get started!
               </p>
               <Button onClick={() => router.push('/inventory')}>
                 Go to Inventory
@@ -392,52 +262,41 @@ function PVPBattlePageContent() {
             </div>
           ) : (
             <>
-              <div className="grid md:grid-cols-2 gap-4">
-                {myBeasts.map((beast, index) => (
-                  <Card
-                    key={beast.id}
-                    className={`cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg active:scale-95 animate-in slide-in-from-bottom ${
-                      selectedBeast?.id === beast.id ? 'ring-4 ring-primary shadow-primary/50' : ''
-                    }`}
-                    style={{ animationDelay: `${index * 100}ms` }}
-                    onClick={() => setSelectedBeast(beast)}
-                  >
-                    <CardHeader>
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <CardTitle className="text-lg">{beast.name}</CardTitle>
-                          <Badge className="mt-2">
-                            {beast.traits?.type || 'Unknown'}
-                          </Badge>
-                        </div>
-                        <Badge variant="secondary">
-                          LVL {beast.level}
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <HealthBar 
-                        value={beast.hp} 
-                        max={beast.max_hp} 
-                        label="HP" 
-                      />
-                      <div className="grid grid-cols-3 gap-2 text-xs font-mono">
-                        <div className="flex items-center gap-1">
-                          <Zap className="w-3 h-3 text-accent" />
-                          <span>ATK: {beast.attack}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Shield className="w-3 h-3 text-blue-500" />
-                          <span>DEF: {beast.defense}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Heart className="w-3 h-3 text-destructive" />
-                          <span>HP: {beast.hp}</span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Button
+                  size="lg"
+                  disabled={isLoading}
+                  onClick={handleCreateRoom}
+                  className="transition-all duration-300 hover:scale-105 active:scale-95"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Swords className="w-5 h-5 mr-2" />
+                      Create Room
+                    </>
+                  )}
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={() => setView('browse')}
+                >
+                  <Users className="w-5 h-5 mr-2" />
+                  Browse Rooms
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={() => setView('join')}
+                >
+                  <Hash className="w-5 h-5 mr-2" />
+                  Join by Code
+                </Button>
               </div>
 
               {error && (
@@ -452,148 +311,7 @@ function PVPBattlePageContent() {
     </div>
   )
 
-  const renderWaitingView = () => (
-    <Card className="max-w-2xl mx-auto">
-      <CardHeader>
-        <div className="flex justify-between items-center">
-          <CardTitle className="text-2xl">Waiting for Opponent</CardTitle>
-          {connectionStatus === 'connected' && (
-            <div className="flex items-center gap-2 text-xs text-green-500">
-              <Wifi className="w-4 h-4" />
-              <span>Connected</span>
-            </div>
-          )}
-          {connectionStatus === 'reconnecting' && (
-            <div className="flex items-center gap-2 text-xs text-yellow-500">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Reconnecting...</span>
-            </div>
-          )}
-          {connectionStatus === 'disconnected' && (
-            <div className="flex items-center gap-2 text-xs text-destructive">
-              <WifiOff className="w-4 h-4" />
-              <span>Disconnected</span>
-            </div>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="text-center space-y-6">
-          <div className="bg-muted p-6 rounded-lg border-2 border-primary/20">
-            <p className="text-sm text-muted-foreground mb-2 font-mono">Room Code</p>
-            <div className="flex items-center justify-center gap-3">
-              <p className="text-4xl font-bold font-mono tracking-wider text-primary">
-                {createdRoom?.room_code}
-              </p>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleCopyRoomCode}
-              >
-                {copiedCode ? (
-                  <>✓ Copied</>
-                ) : (
-                  <><Copy className="w-4 h-4" /></>
-                )}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground mt-3 font-mono">
-              Share this code with your opponent
-            </p>
-            
-            {/* Telegram Share Button */}
-            <div className="mt-4 pt-4 border-t border-border">
-              <Button
-                className="w-full"
-                variant="default"
-                onClick={() => shareBattleToTelegram(createdRoom?.room_code || '', createdRoom?.id)}
-              >
-                <Send className="w-4 h-4 mr-2" />
-                Share via Telegram
-              </Button>
-            </div>
-          </div>
 
-          {selectedBeast && (
-            <div className="bg-card p-4 rounded-lg border-2 border-primary/20 animate-in slide-in-from-bottom">
-              <p className="text-xs text-muted-foreground font-mono mb-2">Your Beast</p>
-              <p className="font-bold font-mono text-lg">{selectedBeast.name}</p>
-              <Badge variant="secondary" className="mt-2">LVL {selectedBeast.level}</Badge>
-              <div className="grid grid-cols-3 gap-2 text-xs font-mono mt-3">
-                <div className="flex items-center gap-1 justify-center">
-                  <Zap className="w-3 h-3 text-accent" />
-                  <span>{selectedBeast.attack}</span>
-                </div>
-                <div className="flex items-center gap-1 justify-center">
-                  <Shield className="w-3 h-3 text-blue-500" />
-                  <span>{selectedBeast.defense}</span>
-                </div>
-                <div className="flex items-center gap-1 justify-center">
-                  <Heart className="w-3 h-3 text-destructive" />
-                  <span>{selectedBeast.hp}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {showOpponentJoined && opponentBeast && (
-            <div className="bg-accent/20 p-4 rounded-lg border-2 border-accent animate-in slide-in-from-top">
-              <p className="text-xs text-accent font-mono mb-2 font-bold">🎉 Opponent Joined!</p>
-              <p className="font-bold font-mono text-lg">{opponentBeast.name}</p>
-              <Badge variant="secondary" className="mt-2">LVL {opponentBeast.level}</Badge>
-              <div className="grid grid-cols-3 gap-2 text-xs font-mono mt-3">
-                <div className="flex items-center gap-1 justify-center">
-                  <Zap className="w-3 h-3 text-accent" />
-                  <span>{opponentBeast.attack}</span>
-                </div>
-                <div className="flex items-center gap-1 justify-center">
-                  <Shield className="w-3 h-3 text-blue-500" />
-                  <span>{opponentBeast.defense}</span>
-                </div>
-                <div className="flex items-center gap-1 justify-center">
-                  <Heart className="w-3 h-3 text-destructive" />
-                  <span>{opponentBeast.hp}</span>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground font-mono mt-3 text-center">
-                Starting battle...
-              </p>
-            </div>
-          )}
-
-          <div className="flex gap-2 justify-center">
-            <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-            <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-            <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-          </div>
-
-          {error && (
-            <div className="p-3 bg-destructive/10 border border-destructive rounded text-destructive text-sm">
-              {error}
-            </div>
-          )}
-
-          <Button
-            variant="outline"
-            onClick={handleCancelRoom}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Canceling...
-              </>
-            ) : (
-              <>
-                <X className="w-4 h-4 mr-2" />
-                Cancel Room
-              </>
-            )}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  )
 
   const renderBrowseView = () => (
     <Card className="max-w-4xl mx-auto">
@@ -606,12 +324,6 @@ function PVPBattlePageContent() {
         </div>
       </CardHeader>
       <CardContent>
-        {!selectedBeast && (
-          <div className="mb-4 p-3 bg-accent/10 border border-accent rounded text-sm">
-            Select a beast from the main menu before joining a room
-          </div>
-        )}
-
         {availableRooms.length === 0 ? (
           <div className="text-center py-12">
             <Users className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
@@ -660,7 +372,7 @@ function PVPBattlePageContent() {
                     </p>
                     <Button
                       className="w-full"
-                      disabled={!selectedBeast || isLoading || room.player1_id === userId}
+                      disabled={isLoading || room.player1_id === userId}
                       onClick={() => handleJoinRoom(room.room_code)}
                     >
                       {room.player1_id === userId ? 'Your Room' : 'Join Battle'}
@@ -692,12 +404,6 @@ function PVPBattlePageContent() {
         </div>
       </CardHeader>
       <CardContent>
-        {!selectedBeast && (
-          <div className="mb-4 p-3 bg-accent/10 border border-accent rounded text-sm">
-            Select a beast from the main menu before joining a room
-          </div>
-        )}
-
         <div className="space-y-4">
           <div>
             <label className="text-sm font-medium mb-2 block">
@@ -722,7 +428,7 @@ function PVPBattlePageContent() {
           <Button
             size="lg"
             className="w-full"
-            disabled={!selectedBeast || roomCodeInput.length !== 6 || isLoading}
+            disabled={roomCodeInput.length !== 6 || isLoading}
             onClick={() => handleJoinRoom(roomCodeInput)}
           >
             {isLoading ? (
@@ -758,7 +464,6 @@ function PVPBattlePageContent() {
         </div>
 
         {view === 'select' && renderSelectView()}
-        {view === 'waiting' && renderWaitingView()}
         {view === 'browse' && renderBrowseView()}
         {view === 'join' && renderJoinView()}
       </main>

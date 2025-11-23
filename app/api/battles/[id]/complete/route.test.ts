@@ -79,7 +79,8 @@ describe('POST /api/battles/[id]/complete', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data.error).toContain('Missing required fields')
+    expect(data.error).toContain('Battle completion data is incomplete')
+    expect(data.code).toBe('MISSING_REQUIRED_FIELDS')
   })
 
   it('should return 400 if winner is invalid', async () => {
@@ -96,7 +97,8 @@ describe('POST /api/battles/[id]/complete', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data.error).toContain('Invalid winner value')
+    expect(data.error).toContain('Invalid battle result')
+    expect(data.code).toBe('INVALID_WINNER_VALUE')
   })
 
   it('should return 404 if battle does not exist', async () => {
@@ -121,7 +123,8 @@ describe('POST /api/battles/[id]/complete', () => {
     const data = await response.json()
 
     expect(response.status).toBe(404)
-    expect(data.error).toBe('Battle not found')
+    expect(data.error).toContain('Battle not found')
+    expect(data.code).toBe('BATTLE_NOT_FOUND')
   })
 
   it('should return 400 if battle is already completed', async () => {
@@ -154,7 +157,8 @@ describe('POST /api/battles/[id]/complete', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data.error).toBe('Battle is already completed')
+    expect(data.error).toContain('This battle has already ended')
+    expect(data.code).toBe('BATTLE_ALREADY_COMPLETED')
   })
 
   it('should return 400 if winner validation fails (player wins but enemy HP not zero)', async () => {
@@ -187,7 +191,8 @@ describe('POST /api/battles/[id]/complete', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data.error).toContain('Winner validation failed')
+    expect(data.error).toContain('Battle result is invalid')
+    expect(data.code).toBe('INVALID_BATTLE_RESULT')
   })
 
   it('should successfully complete battle when player wins', async () => {

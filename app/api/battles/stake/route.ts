@@ -17,7 +17,10 @@ export async function GET(request: NextRequest) {
 
     if (!transaction_hash) {
       return NextResponse.json(
-        { error: 'transaction_hash is required' },
+        { 
+          error: 'Transaction hash is required to look up stake information.',
+          code: 'MISSING_TRANSACTION_HASH'
+        },
         { status: 400 }
       )
     }
@@ -31,7 +34,10 @@ export async function GET(request: NextRequest) {
 
     if (queryError || !stakeTransaction) {
       return NextResponse.json(
-        { error: 'Transaction not found' },
+        { 
+          error: 'Stake transaction not found. Please check the transaction hash and try again.',
+          code: 'TRANSACTION_NOT_FOUND'
+        },
         { status: 404 }
       )
     }
@@ -44,7 +50,10 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error('Stake transaction query error:', error)
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
+      { 
+        error: 'An unexpected error occurred while looking up the transaction. Please try again.',
+        code: 'INTERNAL_ERROR'
+      },
       { status: 500 }
     )
   }
@@ -69,35 +78,50 @@ export async function POST(request: NextRequest) {
     // Validate all required fields
     if (!battle_id) {
       return NextResponse.json(
-        { error: 'battle_id is required' },
+        { 
+          error: 'Battle information is missing. Please try again.',
+          code: 'MISSING_BATTLE_ID'
+        },
         { status: 400 }
       )
     }
 
     if (!player_id) {
       return NextResponse.json(
-        { error: 'player_id is required' },
+        { 
+          error: 'Player information is missing. Please reconnect your wallet and try again.',
+          code: 'MISSING_PLAYER_ID'
+        },
         { status: 400 }
       )
     }
 
     if (amount === undefined || amount === null) {
       return NextResponse.json(
-        { error: 'amount is required' },
+        { 
+          error: 'Stake amount is required. Please specify how much to stake.',
+          code: 'MISSING_AMOUNT'
+        },
         { status: 400 }
       )
     }
 
     if (typeof amount !== 'number' || amount <= 0) {
       return NextResponse.json(
-        { error: 'amount must be a positive number' },
+        { 
+          error: 'Stake amount must be a positive number. Please enter a valid amount.',
+          code: 'INVALID_AMOUNT'
+        },
         { status: 400 }
       )
     }
 
     if (!transaction_hash) {
       return NextResponse.json(
-        { error: 'transaction_hash is required' },
+        { 
+          error: 'Transaction hash is required to record the stake.',
+          code: 'MISSING_TRANSACTION_HASH'
+        },
         { status: 400 }
       )
     }
@@ -111,7 +135,10 @@ export async function POST(request: NextRequest) {
 
     if (battleError || !battle) {
       return NextResponse.json(
-        { error: 'Battle not found' },
+        { 
+          error: 'Battle not found. It may have been cancelled or expired.',
+          code: 'BATTLE_NOT_FOUND'
+        },
         { status: 404 }
       )
     }
@@ -119,7 +146,10 @@ export async function POST(request: NextRequest) {
     // Verify the player is a participant in this battle
     if (battle.player1_id !== player_id && battle.player2_id !== player_id) {
       return NextResponse.json(
-        { error: 'Player is not a participant in this battle' },
+        { 
+          error: 'You are not a participant in this battle. You can only stake in battles you joined.',
+          code: 'PLAYER_NOT_IN_BATTLE'
+        },
         { status: 403 }
       )
     }
@@ -141,13 +171,19 @@ export async function POST(request: NextRequest) {
       // Check if it's a duplicate transaction hash
       if (insertError.code === '23505') {
         return NextResponse.json(
-          { error: 'Transaction hash already exists' },
+          { 
+            error: 'This transaction has already been recorded. Your stake is already registered.',
+            code: 'DUPLICATE_TRANSACTION'
+          },
           { status: 409 }
         )
       }
       
       return NextResponse.json(
-        { error: insertError.message },
+        { 
+          error: 'Failed to record stake transaction. Please check your connection and try again.',
+          code: 'STAKE_RECORD_FAILED'
+        },
         { status: 500 }
       )
     }
@@ -175,7 +211,10 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Stake transaction error:', error)
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
+      { 
+        error: 'An unexpected error occurred while recording your stake. Please try again.',
+        code: 'INTERNAL_ERROR'
+      },
       { status: 500 }
     )
   }

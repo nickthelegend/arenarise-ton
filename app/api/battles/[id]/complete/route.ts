@@ -36,7 +36,10 @@ export async function POST(
     if (!winner || final_player_hp === undefined || final_enemy_hp === undefined) {
       console.error('Validation failed: Missing required fields')
       return NextResponse.json(
-        { error: 'Missing required fields: winner, final_player_hp, and final_enemy_hp are required' },
+        { 
+          error: 'Battle completion data is incomplete. Please try again.',
+          code: 'MISSING_REQUIRED_FIELDS'
+        },
         { status: 400 }
       )
     }
@@ -44,7 +47,10 @@ export async function POST(
     // Validate winner value
     if (winner !== 'player' && winner !== 'enemy') {
       return NextResponse.json(
-        { error: 'Invalid winner value. Must be "player" or "enemy"' },
+        { 
+          error: 'Invalid battle result. Please refresh and try again.',
+          code: 'INVALID_WINNER_VALUE'
+        },
         { status: 400 }
       )
     }
@@ -60,7 +66,10 @@ export async function POST(
     if (battleError || !battle) {
       console.error('Battle not found:', battleError?.message || 'No battle data')
       return NextResponse.json(
-        { error: 'Battle not found' },
+        { 
+          error: 'Battle not found. It may have been cancelled or expired.',
+          code: 'BATTLE_NOT_FOUND'
+        },
         { status: 404 }
       )
     }
@@ -74,7 +83,10 @@ export async function POST(
     const playerId = battle.player1_id
     if (!playerId) {
       return NextResponse.json(
-        { error: 'Player not found in battle' },
+        { 
+          error: 'You are not a participant in this battle.',
+          code: 'PLAYER_NOT_IN_BATTLE'
+        },
         { status: 403 }
       )
     }
@@ -83,7 +95,10 @@ export async function POST(
     // Battle must not already be completed
     if (battle.status === 'completed') {
       return NextResponse.json(
-        { error: 'Battle is already completed' },
+        { 
+          error: 'This battle has already ended. Results have been recorded.',
+          code: 'BATTLE_ALREADY_COMPLETED'
+        },
         { status: 400 }
       )
     }
@@ -95,14 +110,20 @@ export async function POST(
 
     if (winner === 'player' && !isPlayerWinner) {
       return NextResponse.json(
-        { error: 'Winner validation failed: player cannot win if enemy HP is not zero' },
+        { 
+          error: 'Battle result is invalid. Please refresh and try again.',
+          code: 'INVALID_BATTLE_RESULT'
+        },
         { status: 400 }
       )
     }
 
     if (winner === 'enemy' && !isEnemyWinner) {
       return NextResponse.json(
-        { error: 'Winner validation failed: enemy cannot win if player HP is not zero' },
+        { 
+          error: 'Battle result is invalid. Please refresh and try again.',
+          code: 'INVALID_BATTLE_RESULT'
+        },
         { status: 400 }
       )
     }
@@ -137,7 +158,10 @@ export async function POST(
     if (updateError) {
       console.error('Failed to update battle:', updateError.message)
       return NextResponse.json(
-        { error: `Failed to update battle: ${updateError.message}` },
+        { 
+          error: 'Failed to save battle results. Please check your connection and try again.',
+          code: 'BATTLE_UPDATE_FAILED'
+        },
         { status: 500 }
       )
     }
@@ -260,7 +284,10 @@ export async function POST(
     console.error('Error:', error)
     console.error('Stack:', error.stack)
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
+      { 
+        error: 'An unexpected error occurred while completing the battle. Please try again.',
+        code: 'INTERNAL_ERROR'
+      },
       { status: 500 }
     )
   }
