@@ -368,121 +368,132 @@ function PVPBattlePageContent() {
 
   // Render different views based on state
   const renderSelectView = () => (
-    <Card className="max-w-4xl mx-auto">
-      <CardHeader>
-        <CardTitle className="text-2xl">Select Your Beast</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {myBeasts.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground mb-4">
-              You don't have any beasts yet!
-            </p>
-            <Button onClick={() => router.push('/inventory')}>
-              Go to Inventory
+    <div className="space-y-6">
+      {/* Action Buttons at the Top */}
+      <Card className="max-w-4xl mx-auto">
+        <CardHeader>
+          <CardTitle className="text-2xl text-center">Choose Your Action</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Button
+              size="lg"
+              disabled={!selectedBeast || isLoading}
+              onClick={handleCreateRoom}
+              className="transition-all duration-300 hover:scale-105 active:scale-95"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <Swords className="w-5 h-5 mr-2" />
+                  Create Room
+                </>
+              )}
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={() => setView('browse')}
+            >
+              <Users className="w-5 h-5 mr-2" />
+              Browse Rooms
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={() => setView('join')}
+            >
+              <Hash className="w-5 h-5 mr-2" />
+              Join by Code
             </Button>
           </div>
-        ) : (
-          <>
-            <div className="grid md:grid-cols-2 gap-4 mb-6">
-              {myBeasts.map((beast, index) => (
-                <Card
-                  key={beast.id}
-                  className={`cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg active:scale-95 animate-in slide-in-from-bottom ${
-                    selectedBeast?.id === beast.id ? 'ring-4 ring-primary shadow-primary/50' : ''
-                  }`}
-                  style={{ animationDelay: `${index * 100}ms` }}
-                  onClick={() => setSelectedBeast(beast)}
-                >
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-lg">{beast.name}</CardTitle>
-                        <Badge className="mt-2">
-                          {beast.traits?.type || 'Unknown'}
+          {!selectedBeast && (
+            <p className="text-sm text-muted-foreground mt-3 text-center font-mono animate-in fade-in duration-500">
+              Select a beast below to begin
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Beast Selection */}
+      <Card className="max-w-4xl mx-auto">
+        <CardHeader>
+          <CardTitle className="text-2xl">Select Your Beast</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {myBeasts.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground mb-4">
+                You don't have any beasts yet!
+              </p>
+              <Button onClick={() => router.push('/inventory')}>
+                Go to Inventory
+              </Button>
+            </div>
+          ) : (
+            <>
+              <div className="grid md:grid-cols-2 gap-4">
+                {myBeasts.map((beast, index) => (
+                  <Card
+                    key={beast.id}
+                    className={`cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg active:scale-95 animate-in slide-in-from-bottom ${
+                      selectedBeast?.id === beast.id ? 'ring-4 ring-primary shadow-primary/50' : ''
+                    }`}
+                    style={{ animationDelay: `${index * 100}ms` }}
+                    onClick={() => setSelectedBeast(beast)}
+                  >
+                    <CardHeader>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <CardTitle className="text-lg">{beast.name}</CardTitle>
+                          <Badge className="mt-2">
+                            {beast.traits?.type || 'Unknown'}
+                          </Badge>
+                        </div>
+                        <Badge variant="secondary">
+                          LVL {beast.level}
                         </Badge>
                       </div>
-                      <Badge variant="secondary">
-                        LVL {beast.level}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <HealthBar 
-                      value={beast.hp} 
-                      max={beast.max_hp} 
-                      label="HP" 
-                    />
-                    <div className="grid grid-cols-3 gap-2 text-xs font-mono">
-                      <div className="flex items-center gap-1">
-                        <Zap className="w-3 h-3 text-accent" />
-                        <span>ATK: {beast.attack}</span>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <HealthBar 
+                        value={beast.hp} 
+                        max={beast.max_hp} 
+                        label="HP" 
+                      />
+                      <div className="grid grid-cols-3 gap-2 text-xs font-mono">
+                        <div className="flex items-center gap-1">
+                          <Zap className="w-3 h-3 text-accent" />
+                          <span>ATK: {beast.attack}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Shield className="w-3 h-3 text-blue-500" />
+                          <span>DEF: {beast.defense}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Heart className="w-3 h-3 text-destructive" />
+                          <span>HP: {beast.hp}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Shield className="w-3 h-3 text-blue-500" />
-                        <span>DEF: {beast.defense}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Heart className="w-3 h-3 text-destructive" />
-                        <span>HP: {beast.hp}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            {error && (
-              <div className="mb-4 p-3 bg-destructive/10 border border-destructive rounded text-destructive text-sm">
-                {error}
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-            )}
 
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Button
-                size="lg"
-                disabled={!selectedBeast || isLoading}
-                onClick={handleCreateRoom}
-                className="transition-all duration-300 hover:scale-105 active:scale-95"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <Swords className="w-5 h-5 mr-2" />
-                    Create Room
-                  </>
-                )}
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={() => setView('browse')}
-              >
-                <Users className="w-5 h-5 mr-2" />
-                Browse Rooms
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={() => setView('join')}
-              >
-                <Hash className="w-5 h-5 mr-2" />
-                Join by Code
-              </Button>
-            </div>
-            {!selectedBeast && (
-              <p className="text-sm text-muted-foreground mt-3 text-center font-mono animate-in fade-in duration-500">
-                Select a beast to begin
-              </p>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
+              {error && (
+                <div className="mt-4 p-3 bg-destructive/10 border border-destructive rounded text-destructive text-sm">
+                  {error}
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   )
 
   const renderWaitingView = () => (
