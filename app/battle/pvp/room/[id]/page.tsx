@@ -109,6 +109,11 @@ export default function PVPRoomPage() {
           const isPlayer1 = battleInfo.player1_id === currentUserId
           setIsHost(isPlayer1)
           
+          // Get battle moves to determine current HP state
+          const movesHistoryRes = await fetch(`/api/battles/moves?battle_id=${battleId}`)
+          const movesHistoryData = await movesHistoryRes.json()
+          const battleMoves = movesHistoryData.moves || []
+          
           // Get my beast
           const myBeastId = isPlayer1 ? battleInfo.beast1_id : battleInfo.beast2_id
           
@@ -118,7 +123,14 @@ export default function PVPRoomPage() {
             
             if (beastData.beast) {
               setMyBeast(beastData.beast)
-              setMyBeastHp(beastData.beast.hp)
+              
+              // Calculate current HP from battle moves
+              // Find the last move where I was the target (opponent attacked me)
+              const movesAgainstMe = battleMoves.filter((m: any) => m.player_id !== currentUserId)
+              const lastMoveAgainstMe = movesAgainstMe[movesAgainstMe.length - 1]
+              
+              const currentMyHp = lastMoveAgainstMe?.target_hp_remaining ?? beastData.beast.hp
+              setMyBeastHp(currentMyHp)
             }
           }
           
@@ -132,7 +144,15 @@ export default function PVPRoomPage() {
               
               if (oppBeastData.beast) {
                 setOpponentBeast(oppBeastData.beast)
-                setOpponentHp(oppBeastData.beast.hp)
+                
+                // Calculate opponent's current HP from battle moves
+                // Find the last move where opponent was the target (I attacked them)
+                const movesAgainstOpponent = battleMoves.filter((m: any) => m.player_id === currentUserId)
+                const lastMoveAgainstOpponent = movesAgainstOpponent[movesAgainstOpponent.length - 1]
+                
+                const currentOppHp = lastMoveAgainstOpponent?.target_hp_remaining ?? oppBeastData.beast.hp
+                setOpponentHp(currentOppHp)
+                
                 addToBattleLog(`Battle started! ${myBeast?.name || 'Your beast'} vs ${oppBeastData.beast.name}`)
               }
             }
@@ -171,6 +191,31 @@ export default function PVPRoomPage() {
           console.log('Battle update received via WebSocket:', updatedBattle)
           setBattle(updatedBattle as any)
           
+          // Sync HP state from battle moves
+          try {
+            const movesHistoryRes = await fetch(`/api/battles/moves?battle_id=${battleId}`)
+            const movesHistoryData = await movesHistoryRes.json()
+            const battleMoves = movesHistoryData.moves || []
+            
+            if (battleMoves.length > 0) {
+              // Update my HP from opponent's moves
+              const movesAgainstMe = battleMoves.filter((m: any) => m.player_id !== userId)
+              const lastMoveAgainstMe = movesAgainstMe[movesAgainstMe.length - 1]
+              if (lastMoveAgainstMe) {
+                setMyBeastHp(lastMoveAgainstMe.target_hp_remaining)
+              }
+              
+              // Update opponent HP from my moves
+              const movesAgainstOpponent = battleMoves.filter((m: any) => m.player_id === userId)
+              const lastMoveAgainstOpponent = movesAgainstOpponent[movesAgainstOpponent.length - 1]
+              if (lastMoveAgainstOpponent) {
+                setOpponentHp(lastMoveAgainstOpponent.target_hp_remaining)
+              }
+            }
+          } catch (error) {
+            console.error('Error syncing HP from moves:', error)
+          }
+          
           // If opponent just joined
           if (updatedBattle.status === 'in_progress' && updatedBattle.player2_id && updatedBattle.beast2_id && !opponentBeast) {
             const oppBeastId = isHost ? updatedBattle.beast2_id : updatedBattle.beast1_id
@@ -182,7 +227,17 @@ export default function PVPRoomPage() {
                 
                 if (oppBeastData.beast) {
                   setOpponentBeast(oppBeastData.beast)
-                  setOpponentHp(oppBeastData.beast.hp)
+                  
+                  // Get HP from moves if available
+                  const movesHistoryRes = await fetch(`/api/battles/moves?battle_id=${battleId}`)
+                  const movesHistoryData = await movesHistoryRes.json()
+                  const battleMoves = movesHistoryData.moves || []
+                  
+                  const movesAgainstOpp = battleMoves.filter((m: any) => m.player_id === userId)
+                  const lastMoveAgainstOpp = movesAgainstOpp[movesAgainstOpp.length - 1]
+                  const currentOppHp = lastMoveAgainstOpp?.target_hp_remaining ?? oppBeastData.beast.hp
+                  
+                  setOpponentHp(currentOppHp)
                   addToBattleLog(`${oppBeastData.beast.name} joined the battle!`)
                 }
               } catch (error) {
@@ -210,6 +265,9 @@ export default function PVPRoomPage() {
             // Update my HP (I took damage)
             setMyBeastHp(move.target_hp_remaining)
             setTurnNumber(move.turn_number + 1)
+          } else {
+            // My move was recorded, update opponent HP
+            setOpponentHp(move.target_hp_remaining)
           }
         },
         onConnectionStatusChange: (status) => {
@@ -237,6 +295,30 @@ export default function PVPRoomPage() {
           setBattle(battleInfo)
           setIsMyTurn(battleInfo.current_turn === userId)
           
+          // Get battle moves to sync HP state
+          const movesHistoryRes = await fetch(`/api/battles/moves?battle_id=${battleId}`)
+          const movesHistoryData = await movesHistoryRes.json()
+          const battleMoves = movesHistoryData.moves || []
+          
+          // Update HP from battle moves
+          if (battleMoves.length > 0) {
+            // Find moves against me (opponent's moves)
+            const movesAgainstMe = battleMoves.filter((m: any) => m.player_id !== userId)
+            const lastMoveAgainstMe = movesAgainstMe[movesAgainstMe.length - 1]
+            
+            if (lastMoveAgainstMe) {
+              setMyBeastHp(lastMoveAgainstMe.target_hp_remaining)
+            }
+            
+            // Find moves against opponent (my moves)
+            const movesAgainstOpponent = battleMoves.filter((m: any) => m.player_id === userId)
+            const lastMoveAgainstOpponent = movesAgainstOpponent[movesAgainstOpponent.length - 1]
+            
+            if (lastMoveAgainstOpponent) {
+              setOpponentHp(lastMoveAgainstOpponent.target_hp_remaining)
+            }
+          }
+          
           // If opponent joined and we don't have their beast yet
           if (battleInfo.status === 'in_progress' && battleInfo.player2_id && battleInfo.beast2_id && !opponentBeast) {
             const oppBeastId = isHost ? battleInfo.beast2_id : battleInfo.beast1_id
@@ -248,7 +330,13 @@ export default function PVPRoomPage() {
               if (oppBeastData.beast) {
                 console.log('Opponent beast loaded via polling:', oppBeastData.beast.name)
                 setOpponentBeast(oppBeastData.beast)
-                setOpponentHp(oppBeastData.beast.hp)
+                
+                // Set initial HP or HP from moves
+                const movesAgainstOpp = battleMoves.filter((m: any) => m.player_id === userId)
+                const lastMoveAgainstOpp = movesAgainstOpp[movesAgainstOpp.length - 1]
+                const currentOppHp = lastMoveAgainstOpp?.target_hp_remaining ?? oppBeastData.beast.hp
+                
+                setOpponentHp(currentOppHp)
                 addToBattleLog(`${oppBeastData.beast.name} joined the battle!`)
               }
             }
