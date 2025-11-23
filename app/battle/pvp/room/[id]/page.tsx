@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { Navbar } from '@/components/navbar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/8bitcn/card'
@@ -12,6 +12,20 @@ import { subscribeToBattle, ConnectionManager } from '@/lib/realtime-manager'
 import { shareBattleToTelegram } from '@/lib/telegram-share'
 import { convertIpfsUrl } from '@/lib/ipfs'
 import { Swords, Zap, Shield, Heart, Loader2, Copy, X, Wifi, WifiOff, Send, Sparkles } from 'lucide-react'
+import dynamic from 'next/dynamic'
+
+// Lazy load outcome animation component for better performance
+const OutcomeAnimation = dynamic(
+  () => import('@/components/battle/outcome-animation').then(mod => ({ default: mod.OutcomeAnimation })),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+        <Loader2 className="w-12 h-12 animate-spin text-primary" />
+      </div>
+    )
+  }
+)
 
 interface Beast {
   id: number
@@ -67,6 +81,12 @@ export default function PVPRoomPage() {
   const [copiedCode, setCopiedCode] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isHost, setIsHost] = useState(false)
+  const [showOutcomeAnimation, setShowOutcomeAnimation] = useState(false)
+  const [battleOutcome, setBattleOutcome] = useState<'victory' | 'defeat' | null>(null)
+  const [rewardAmount, setRewardAmount] = useState<number>(0)
+  
+  // Track if animation has been shown to prevent multiple triggers
+  const animationShownRef = useRef(false)
 
   // Add to battle log
   const addToBattleLog = useCallback((message: string) => {
@@ -248,10 +268,26 @@ export default function PVPRoomPage() {
           
           setIsMyTurn(updatedBattle.current_turn === userId)
           
-          // Check if battle completed
-          if (updatedBattle.status === 'completed') {
+          // Check if battle completed and show outcome animation (only once)
+          if (updatedBattle.status === 'completed' && !animationShownRef.current) {
+            animationShownRef.current = true
             const didWin = updatedBattle.winner_id === userId
+            
+            // Set reward amount from battle data
+            if (updatedBattle.reward_amount) {
+              setRewardAmount(updatedBattle.reward_amount)
+              if (didWin && updatedBattle.reward_amount > 0) {
+                addToBattleLog(`You earned ${updatedBattle.reward_amount} RISE tokens!`)
+              }
+            }
+            
             addToBattleLog(didWin ? 'Victory! You won the battle!' : 'Defeat! Better luck next time!')
+            
+            // Small delay for smooth transition
+            setTimeout(() => {
+              setBattleOutcome(didWin ? 'victory' : 'defeat')
+              setShowOutcomeAnimation(true)
+            }, 500)
           }
         },
         onMoveReceived: async (move) => {
@@ -291,6 +327,13 @@ export default function PVPRoomPage() {
           const battleInfo = battleData.battle
           console.log('Battle status polled:', battleInfo.status, 'Player2:', battleInfo.player2_id)
           
+          // Stop polling if battle is completed
+          if (battleInfo.status === 'completed' && pollInterval) {
+            console.log('Battle completed, stopping polling')
+            clearInterval(pollInterval)
+            pollInterval = null
+          }
+          
           // Update battle state
           setBattle(battleInfo)
           setIsMyTurn(battleInfo.current_turn === userId)
@@ -317,6 +360,28 @@ export default function PVPRoomPage() {
             if (lastMoveAgainstOpponent) {
               setOpponentHp(lastMoveAgainstOpponent.target_hp_remaining)
             }
+          }
+          
+          // Check if battle completed and show outcome animation (only once)
+          if (battleInfo.status === 'completed' && !animationShownRef.current) {
+            animationShownRef.current = true
+            const didWin = battleInfo.winner_id === userId
+            
+            // Set reward amount from battle data
+            if (battleInfo.reward_amount) {
+              setRewardAmount(battleInfo.reward_amount)
+              if (didWin && battleInfo.reward_amount > 0) {
+                addToBattleLog(`You earned ${battleInfo.reward_amount} RISE tokens!`)
+              }
+            }
+            
+            addToBattleLog(didWin ? 'Victory! You won the battle!' : 'Defeat! Better luck next time!')
+            
+            // Small delay for smooth transition
+            setTimeout(() => {
+              setBattleOutcome(didWin ? 'victory' : 'defeat')
+              setShowOutcomeAnimation(true)
+            }, 500)
           }
           
           // If opponent joined and we don't have their beast yet
@@ -408,6 +473,21 @@ export default function PVPRoomPage() {
 
       if (moveData.battle_ended) {
         addToBattleLog(`${myBeast?.name} wins! ${opponentBeast?.name} has been defeated!`)
+        
+        // Set reward amount if provided
+        if (moveData.reward_amount) {
+          setRewardAmount(moveData.reward_amount)
+          addToBattleLog(`You earned ${moveData.reward_amount} RISE tokens!`)
+        }
+        
+        // Show outcome animation (only once)
+        if (!animationShownRef.current) {
+          animationShownRef.current = true
+          setTimeout(() => {
+            setBattleOutcome('victory')
+            setShowOutcomeAnimation(true)
+          }, 500)
+        }
       } else {
         setIsMyTurn(false)
         addToBattleLog("Opponent's turn...")
@@ -728,6 +808,19 @@ export default function PVPRoomPage() {
           )
         )}
       </main>
+      
+      {/* Outcome Animation */}
+      {showOutcomeAnimation && battleOutcome && (
+        <OutcomeAnimation
+          outcome={battleOutcome}
+          visible={showOutcomeAnimation}
+          rewardAmount={rewardAmount}
+          onComplete={() => {
+            setShowOutcomeAnimation(false)
+            router.push('/battle/pvp')
+          }}
+        />
+      )}
     </div>
   )
 }

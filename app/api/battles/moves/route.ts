@@ -76,9 +76,37 @@ export async function POST(request: NextRequest) {
       let rewardStatus: 'completed' | 'failed' | 'pending' | 'none' = 'none'
       
       if (!winnerError && winner?.wallet_address) {
-        // For now, mark as pending - actual token transfer would happen here
-        // In production, you'd call requestRiseTokens here
-        rewardStatus = 'pending'
+        // Send RISE tokens to winner
+        try {
+          console.log(`Sending ${rewardAmount} RISE to winner ${winner.wallet_address}`)
+          
+          // Use absolute URL for server-side fetch
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL 
+            ? `https://${process.env.VERCEL_URL}` 
+            : 'http://localhost:3000'
+          
+          const sendRiseResponse = await fetch(`${baseUrl}/api/send/rise`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              userWallet: winner.wallet_address,
+              amount: rewardAmount,
+            }),
+          })
+
+          if (sendRiseResponse.ok) {
+            rewardStatus = 'completed'
+            console.log(`Successfully sent ${rewardAmount} RISE to ${winner.wallet_address}`)
+          } else {
+            rewardStatus = 'pending'
+            console.error(`Failed to send RISE tokens: ${sendRiseResponse.status}`)
+          }
+        } catch (error) {
+          console.error('Error sending RISE tokens:', error)
+          rewardStatus = 'pending'
+        }
         
         // Update battle with reward info (Requirement 8.4)
         await supabase
