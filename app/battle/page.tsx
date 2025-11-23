@@ -586,7 +586,7 @@ export default function BattlePage() {
             <Card className="mb-6">
               <CardHeader>
                 <CardTitle className="text-2xl">Player vs Player</CardTitle>
-                <CardDescription>Challenge other players and win $RISE tokens</CardDescription>
+                <CardDescription>Challenge other players in real-time battles</CardDescription>
               </CardHeader>
             </Card>
 
@@ -601,19 +601,19 @@ export default function BattlePage() {
                 </div>
               </div>
 
-              {/* Matchmaking */}
+              {/* PVP Options */}
               <div>
                 <h3 className="text-xl font-bold mb-4 text-accent uppercase font-mono">
-                  Find Opponent
+                  Battle Options
                 </h3>
                 <Card className="h-full">
                   <CardContent className="flex flex-col items-center justify-center h-full min-h-[400px] text-center p-8">
                     <Users className="w-20 h-20 text-muted-foreground mb-4" />
                     <h4 className="text-xl font-bold mb-2 font-mono uppercase">
-                      Matchmaking System
+                      Real-Time PVP
                     </h4>
                     <p className="text-muted-foreground mb-6 font-mono">
-                      Find players with similar level beasts
+                      Create a room, join a room, or browse available battles
                     </p>
                     <Button
                       size="lg"
@@ -622,11 +622,11 @@ export default function BattlePage() {
                       onClick={() => router.push(`/battle/pvp?beastId=${selectedBeast}`)}
                     >
                       <Users className="w-5 h-5 mr-2" />
-                      Find Match
+                      Go to PVP Lobby
                     </Button>
-                    {selectedBeast && (
+                    {!selectedBeast && (
                       <div className="mt-4 text-sm text-muted-foreground font-mono">
-                        Searching for opponents at your level...
+                        Select a beast to continue
                       </div>
                     )}
                   </CardContent>

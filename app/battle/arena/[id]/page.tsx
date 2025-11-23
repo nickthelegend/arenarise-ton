@@ -116,6 +116,11 @@ export default function BattleArenaPage() {
   const [isPVE, setIsPVE] = useState(false)
   const [rewardAmount, setRewardAmount] = useState<number>(0)
 
+  // Define addToBattleLog early so it can be used in all effects
+  const addToBattleLog = useCallback((message: string) => {
+    setBattleLog(prev => [...prev, message])
+  }, [])
+
   // Handle viewport changes for dynamic layout adjustment
   useEffect(() => {
     // Set initial viewport width
@@ -246,9 +251,9 @@ export default function BattleArenaPage() {
     fetchBattleData()
   }, [address, battleId, router])
 
-  // Subscribe to real-time battle moves
+  // Subscribe to real-time battle moves (PVP only)
   useEffect(() => {
-    if (!battleId) return
+    if (!battleId || isPVE) return
 
     const newChannel = supabase
       .channel(`battle_${battleId}`)
@@ -263,23 +268,29 @@ export default function BattleArenaPage() {
         async (payload) => {
           console.log('New move received:', payload)
           
-          // Fetch the complete move data with move details
-          const res = await fetch(`/api/battles/moves?battle_id=${battleId}`)
-          const data = await res.json()
-          setBattleMoves(data.moves || [])
-          
           const newMove = payload.new as any
           
-          // Update HP based on who made the move
-          if (newMove.player_id === userId) {
-            // My move - opponent took damage
-            setOpponentHp(newMove.target_hp_remaining)
-          } else {
+          // Only process opponent's moves (my moves are handled locally)
+          if (newMove.player_id !== userId) {
+            // Fetch the complete move data with move details
+            const res = await fetch(`/api/battles/moves?battle_id=${battleId}`)
+            const data = await res.json()
+            setBattleMoves(data.moves || [])
+            
+            // Find the move details
+            const moveDetails = data.moves?.find((m: BattleMove) => m.id === newMove.id)
+            
+            if (moveDetails) {
+              // Add to battle log
+              addToBattleLog(
+                `${opponentBeast?.name} used ${moveDetails.move.name}! Dealt ${newMove.damage_dealt} damage!`
+              )
+            }
+            
             // Opponent's move - I took damage
             setMyBeastHp(newMove.target_hp_remaining)
+            setTurnNumber(newMove.turn_number + 1)
           }
-
-          setTurnNumber(newMove.turn_number + 1)
           
           // Check battle status
           const battleRes = await fetch(`/api/battles?battle_id=${battleId}`)
@@ -288,13 +299,28 @@ export default function BattleArenaPage() {
             setBattle(battleData.battle)
             setIsMyTurn(battleData.battle.current_turn === userId)
             
-            // Check if battle is completed and show outcome animation
+            // Check if battle is completed and show outcome animation (Requirement 8.3)
             if (battleData.battle.status === 'completed' && !showOutcomeAnimation) {
               setIsAnimationLoading(true)
               
               // Small delay for smooth transition
               setTimeout(() => {
                 const didWin = battleData.battle.winner_id === userId
+                
+                if (!didWin) {
+                  addToBattleLog(
+                    `${opponentBeast?.name} wins! ${myBeast?.name} has been defeated!`
+                  )
+                }
+                
+                // Set reward amount from battle data (Requirement 8.4)
+                if (battleData.battle.reward_amount) {
+                  setRewardAmount(battleData.battle.reward_amount)
+                  if (didWin && battleData.battle.reward_amount > 0) {
+                    addToBattleLog(`You earned ${battleData.battle.reward_amount} RISE tokens!`)
+                  }
+                }
+                
                 setBattleOutcome(didWin ? 'victory' : 'defeat')
                 setShowOutcomeAnimation(true)
                 setIsAnimationLoading(false)
@@ -302,6 +328,9 @@ export default function BattleArenaPage() {
                 // Clear stake data after battle completes
                 clearStakeData()
               }, 300)
+            } else if (battleData.battle.current_turn === userId && newMove.player_id !== userId) {
+              // It's my turn now after opponent's move
+              addToBattleLog("Your turn!")
             }
           }
         }
@@ -313,11 +342,7 @@ export default function BattleArenaPage() {
     return () => {
       newChannel.unsubscribe()
     }
-  }, [battleId, userId])
-
-  const addToBattleLog = useCallback((message: string) => {
-    setBattleLog(prev => [...prev, message])
-  }, [])
+  }, [battleId, userId, isPVE, opponentBeast, myBeast, showOutcomeAnimation, addToBattleLog])
 
   const handleMove = useCallback(async (move: Move) => {
     if (!battle || !userId || !isMyTurn || isExecutingMove) return
@@ -347,14 +372,15 @@ export default function BattleArenaPage() {
       // Update opponent HP immediately for better UX
       setOpponentHp(newOpponentHp)
 
-      // Check if battle ended (opponent HP reached 0)
-      if (newOpponentHp === 0) {
-        addToBattleLog(
-          `${myBeast?.name} wins! ${opponentName} has been defeated!`
-        )
-        
-        // Complete the battle via API
-        if (isPVE) {
+      if (isPVE) {
+        // PVE battle logic - handle locally with AI
+        // Check if battle ended (opponent HP reached 0)
+        if (newOpponentHp === 0) {
+          addToBattleLog(
+            `${myBeast?.name} wins! ${opponentName} has been defeated!`
+          )
+          
+          // Complete the battle via API
           const completeResponse = await fetch(`/api/battles/${battleId}/complete`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -374,26 +400,22 @@ export default function BattleArenaPage() {
               addToBattleLog(`You earned ${completeData.reward} RISE tokens!`)
             }
           }
-        }
-        
-        // Show loading state before animation
-        setIsAnimationLoading(true)
-        
-        // Small delay for smooth transition
-        setTimeout(() => {
-          setBattleOutcome('victory')
-          setShowOutcomeAnimation(true)
-          setIsAnimationLoading(false)
           
-          // Clear stake data
-          clearStakeData()
-        }, 300)
-      } else {
-        // Battle continues - switch turn
-        setIsMyTurn(false)
-        
-        if (isPVE) {
-          // Execute AI enemy move after a delay
+          // Show loading state before animation
+          setIsAnimationLoading(true)
+          
+          // Small delay for smooth transition
+          setTimeout(() => {
+            setBattleOutcome('victory')
+            setShowOutcomeAnimation(true)
+            setIsAnimationLoading(false)
+            
+            // Clear stake data
+            clearStakeData()
+          }, 300)
+        } else {
+          // Battle continues - execute AI enemy move after a delay
+          setIsMyTurn(false)
           addToBattleLog("Enemy's turn...")
           
           setTimeout(async () => {
@@ -450,7 +472,52 @@ export default function BattleArenaPage() {
               }
             }
           }, 2000) // 2 second delay for AI move
+        }
+      } else {
+        // PVP battle logic - record move via API and wait for real-time sync
+        // Record the move via API
+        const moveResponse = await fetch('/api/battles/moves', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            battle_id: battleId,
+            player_id: userId,
+            move_id: move.id,
+            turn_number: turnNumber,
+            damage_dealt: calculatedDamage,
+            target_hp_remaining: newOpponentHp
+          })
+        })
+
+        const moveData = await moveResponse.json()
+
+        if (moveData.battle_ended) {
+          // Battle ended - opponent HP reached 0 (Requirement 8.1, 8.3)
+          addToBattleLog(
+            `${myBeast?.name} wins! ${opponentName} has been defeated!`
+          )
+          
+          // Set reward amount if provided (Requirement 8.4)
+          if (moveData.reward_amount) {
+            setRewardAmount(moveData.reward_amount)
+            addToBattleLog(`You earned ${moveData.reward_amount} RISE tokens!`)
+          }
+          
+          // Show loading state before animation
+          setIsAnimationLoading(true)
+          
+          // Small delay for smooth transition
+          setTimeout(() => {
+            setBattleOutcome('victory')
+            setShowOutcomeAnimation(true)
+            setIsAnimationLoading(false)
+            
+            // Clear stake data
+            clearStakeData()
+          }, 300)
         } else {
+          // Battle continues - wait for opponent's move via real-time subscription
+          setIsMyTurn(false)
           addToBattleLog("Opponent's turn...")
         }
       }

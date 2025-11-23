@@ -8,8 +8,9 @@ import { Button } from '@/components/8bitcn/button'
 import { Badge } from '@/components/8bitcn/badge'
 import { HealthBar } from '@/components/8bitcn/health-bar'
 import { useTonAddress } from '@tonconnect/ui-react'
-import { supabase } from '@/lib/supabase'
-import { Swords, Zap, Shield, Heart, Loader2 } from 'lucide-react'
+import { subscribeToBattle, subscribeToRooms, ConnectionManager } from '@/lib/realtime-manager'
+import { shareBattleToTelegram } from '@/lib/telegram-share'
+import { Swords, Zap, Shield, Heart, Loader2, Copy, X, Users, Hash, Wifi, WifiOff, Send } from 'lucide-react'
 
 interface Beast {
   id: number
@@ -23,24 +24,44 @@ interface Beast {
   traits: any
 }
 
-interface Move {
-  id: number
-  name: string
-  damage: number
-  type: string
-  description: string
-}
-
 interface Battle {
   id: string
   player1_id: string
-  player2_id: string
+  player2_id: string | null
   beast1_id: number
-  beast2_id: number
-  current_turn: string
+  beast2_id: number | null
+  current_turn: string | null
   status: string
   winner_id: string | null
+  room_code: string
+  created_at: string
 }
+
+interface Room {
+  id: string
+  room_code: string
+  player1_id: string
+  beast1_id: number
+  created_at: string
+  beast1: {
+    id: number
+    name: string
+    level: number
+    hp: number
+    max_hp: number
+    attack: number
+    defense: number
+    speed: number
+    traits: any
+    image_ipfs_uri: string | null
+  }
+  player1: {
+    id: string
+    wallet_address: string
+  }
+}
+
+type ViewState = 'select' | 'waiting' | 'browse' | 'join'
 
 function PVPBattlePageContent() {
   const router = useRouter()
@@ -50,8 +71,16 @@ function PVPBattlePageContent() {
   const [userId, setUserId] = useState<string | null>(null)
   const [myBeasts, setMyBeasts] = useState<Beast[]>([])
   const [selectedBeast, setSelectedBeast] = useState<Beast | null>(null)
-  const [isSearching, setIsSearching] = useState(false)
-  const [battleId, setBattleId] = useState<string | null>(null)
+  const [view, setView] = useState<ViewState>('select')
+  const [createdRoom, setCreatedRoom] = useState<Battle | null>(null)
+  const [availableRooms, setAvailableRooms] = useState<Room[]>([])
+  const [roomCodeInput, setRoomCodeInput] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [copiedCode, setCopiedCode] = useState(false)
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'reconnecting'>('connected')
+  const [opponentBeast, setOpponentBeast] = useState<Beast | null>(null)
+  const [showOpponentJoined, setShowOpponentJoined] = useState(false)
   
   // Redirect if not connected
   useEffect(() => {
@@ -87,6 +116,13 @@ function PVPBattlePageContent() {
               setSelectedBeast(preSelectedBeast)
             }
           }
+
+          // Check for join parameter in URL
+          const joinCode = searchParams.get('join')
+          if (joinCode) {
+            setRoomCodeInput(joinCode.toUpperCase())
+            setView('join')
+          }
         }
       } catch (error) {
         console.error('Error fetching user data:', error)
@@ -96,84 +132,648 @@ function PVPBattlePageContent() {
     fetchUserData()
   }, [address, searchParams])
 
-  const handleFindMatch = async () => {
+  // Subscribe to battle updates when in waiting view
+  useEffect(() => {
+    if (view !== 'waiting' || !createdRoom) return
+
+    let connectionManager: ConnectionManager | null = null
+    let unsubscribe: (() => void) | null = null
+
+    const setupSubscription = () => {
+      unsubscribe = subscribeToBattle(createdRoom.id, {
+        onBattleUpdate: async (battle) => {
+          // If player2 joined, fetch their beast info and display it
+          if (battle.status === 'in_progress' && battle.player2_id && battle.beast2_id) {
+            try {
+              // Fetch opponent's beast information
+              const response = await fetch(`/api/beasts/${battle.beast2_id}`)
+              const data = await response.json()
+              
+              if (data.beast) {
+                setOpponentBeast(data.beast)
+                setShowOpponentJoined(true)
+                
+                // Auto-navigate to arena after showing opponent info (2 seconds delay)
+                setTimeout(() => {
+                  router.push(`/battle/arena/${battle.id}`)
+                }, 2000)
+              } else {
+                // If we can't fetch beast info, navigate immediately
+                router.push(`/battle/arena/${battle.id}`)
+              }
+            } catch (error) {
+              console.error('Error fetching opponent beast:', error)
+              // Navigate anyway if there's an error
+              router.push(`/battle/arena/${battle.id}`)
+            }
+          }
+        },
+        onPlayerJoined: async (battle) => {
+          // Fetch and display opponent's beast information
+          if (battle.beast2_id) {
+            try {
+              const response = await fetch(`/api/beasts/${battle.beast2_id}`)
+              const data = await response.json()
+              
+              if (data.beast) {
+                setOpponentBeast(data.beast)
+                setShowOpponentJoined(true)
+                
+                // Auto-navigate to arena after showing opponent info (2 seconds delay)
+                setTimeout(() => {
+                  router.push(`/battle/arena/${battle.id}`)
+                }, 2000)
+              } else {
+                // If we can't fetch beast info, navigate immediately
+                router.push(`/battle/arena/${battle.id}`)
+              }
+            } catch (error) {
+              console.error('Error fetching opponent beast:', error)
+              // Navigate anyway if there's an error
+              router.push(`/battle/arena/${battle.id}`)
+            }
+          }
+        },
+        onConnectionStatusChange: (status) => {
+          setConnectionStatus(status)
+          if (status === 'connected' && connectionManager) {
+            connectionManager.handleConnect()
+          } else if (status === 'disconnected' && connectionManager) {
+            connectionManager.handleDisconnect()
+          }
+        }
+      })
+    }
+
+    // Set up connection manager for automatic reconnection
+    connectionManager = new ConnectionManager(
+      setupSubscription,
+      setConnectionStatus
+    )
+
+    // Initial subscription
+    setupSubscription()
+
+    return () => {
+      if (unsubscribe) unsubscribe()
+      if (connectionManager) connectionManager.cleanup()
+    }
+  }, [view, createdRoom, router])
+
+  // Subscribe to available rooms when in browse view
+  useEffect(() => {
+    if (view !== 'browse') return
+
+    let connectionManager: ConnectionManager | null = null
+    let unsubscribe: (() => void) | null = null
+
+    const setupSubscription = () => {
+      unsubscribe = subscribeToRooms({
+        onRoomsUpdate: (rooms) => {
+          setAvailableRooms(rooms)
+        },
+        onConnectionStatusChange: (status) => {
+          setConnectionStatus(status)
+          if (status === 'connected' && connectionManager) {
+            connectionManager.handleConnect()
+          } else if (status === 'disconnected' && connectionManager) {
+            connectionManager.handleDisconnect()
+          }
+        }
+      })
+    }
+
+    // Set up connection manager for automatic reconnection
+    connectionManager = new ConnectionManager(
+      setupSubscription,
+      setConnectionStatus
+    )
+
+    // Initial subscription
+    setupSubscription()
+
+    return () => {
+      if (unsubscribe) unsubscribe()
+      if (connectionManager) connectionManager.cleanup()
+    }
+  }, [view])
+
+  const handleCreateRoom = async () => {
     if (!selectedBeast || !userId) return
 
-    setIsSearching(true)
-
-    // Add a small delay for smooth transition
-    await new Promise(resolve => setTimeout(resolve, 300))
+    setIsLoading(true)
+    setError(null)
 
     try {
-      // Find another user with beasts (matchmaking)
-      // First try to find beasts from other users
-      let { data: allBeasts, error: beastsError } = await supabase
-        .from('beasts')
-        .select('*')
-        .neq('owner_address', address)
-        .limit(10)
-
-      // If no other users' beasts found, allow self-play (battle your own beasts)
-      if (!allBeasts || allBeasts.length === 0) {
-        const { data: myOtherBeasts, error: myBeastsError } = await supabase
-          .from('beasts')
-          .select('*')
-          .eq('owner_address', address)
-          .neq('id', selectedBeast.id)
-          .limit(10)
-
-        if (myBeastsError) {
-          throw new Error('Error finding opponents. Please try again.')
-        }
-
-        if (!myOtherBeasts || myOtherBeasts.length === 0) {
-          throw new Error('No opponents available. Create more beasts to battle!')
-        }
-
-        allBeasts = myOtherBeasts
-      }
-
-      // Select random opponent beast
-      const opponentBeast = allBeasts[Math.floor(Math.random() * allBeasts.length)]
-
-      // Get opponent user
-      const { data: opponentUser, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('wallet_address', opponentBeast.owner_address)
-        .single()
-
-      const opponentId = opponentUser?.id || userId // Fallback to self if no user found
-
-      const response = await fetch('/api/battles', {
+      const response = await fetch('/api/battles/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          player1_id: userId,
-          player2_id: opponentId,
-          beast1_id: selectedBeast.id,
-          beast2_id: opponentBeast.id,
-          bet_amount: 100
+          player_id: userId,
+          beast_id: selectedBeast.id
         })
       })
 
       const data = await response.json()
       
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create room')
+      }
+
       if (data.battle) {
-        setBattleId(data.battle.id)
-        // Navigate to battle arena
-        router.push(`/battle/arena/${data.battle.id}`)
+        setCreatedRoom(data.battle)
+        setView('waiting')
       }
     } catch (error: any) {
-      console.error('Error creating battle:', error)
-      alert(error.message || 'Failed to find match')
-      setIsSearching(false)
+      console.error('Error creating room:', error)
+      setError(error.message || 'Failed to create room')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleCancelRoom = async () => {
+    if (!createdRoom) return
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const response = await fetch(`/api/battles/rooms/${createdRoom.id}`, {
+        method: 'DELETE'
+      })
+
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to cancel room')
+      }
+
+      setCreatedRoom(null)
+      setView('select')
+    } catch (error: any) {
+      console.error('Error canceling room:', error)
+      setError(error.message || 'Failed to cancel room')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleJoinRoom = async (roomCode: string) => {
+    if (!selectedBeast || !userId) return
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const response = await fetch('/api/battles/rooms/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          room_code: roomCode,
+          player_id: userId,
+          beast_id: selectedBeast.id
+        })
+      })
+
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to join room')
+      }
+
+      if (data.success && data.battle_id) {
+        // Navigate to battle arena
+        router.push(`/battle/arena/${data.battle_id}`)
+      }
+    } catch (error: any) {
+      console.error('Error joining room:', error)
+      setError(error.message || 'Failed to join room')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleCopyRoomCode = () => {
+    if (createdRoom?.room_code) {
+      navigator.clipboard.writeText(createdRoom.room_code)
+      setCopiedCode(true)
+      setTimeout(() => setCopiedCode(false), 2000)
     }
   }
 
   if (!address) {
     return null // Will redirect in useEffect
   }
+
+  // Render different views based on state
+  const renderSelectView = () => (
+    <Card className="max-w-4xl mx-auto">
+      <CardHeader>
+        <CardTitle className="text-2xl">Select Your Beast</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {myBeasts.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground mb-4">
+              You don't have any beasts yet!
+            </p>
+            <Button onClick={() => router.push('/inventory')}>
+              Go to Inventory
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className="grid md:grid-cols-2 gap-4 mb-6">
+              {myBeasts.map((beast, index) => (
+                <Card
+                  key={beast.id}
+                  className={`cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg active:scale-95 animate-in slide-in-from-bottom ${
+                    selectedBeast?.id === beast.id ? 'ring-4 ring-primary shadow-primary/50' : ''
+                  }`}
+                  style={{ animationDelay: `${index * 100}ms` }}
+                  onClick={() => setSelectedBeast(beast)}
+                >
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="text-lg">{beast.name}</CardTitle>
+                        <Badge className="mt-2">
+                          {beast.traits?.type || 'Unknown'}
+                        </Badge>
+                      </div>
+                      <Badge variant="secondary">
+                        LVL {beast.level}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <HealthBar 
+                      value={beast.hp} 
+                      max={beast.max_hp} 
+                      label="HP" 
+                    />
+                    <div className="grid grid-cols-3 gap-2 text-xs font-mono">
+                      <div className="flex items-center gap-1">
+                        <Zap className="w-3 h-3 text-accent" />
+                        <span>ATK: {beast.attack}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Shield className="w-3 h-3 text-blue-500" />
+                        <span>DEF: {beast.defense}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Heart className="w-3 h-3 text-destructive" />
+                        <span>HP: {beast.hp}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {error && (
+              <div className="mb-4 p-3 bg-destructive/10 border border-destructive rounded text-destructive text-sm">
+                {error}
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Button
+                size="lg"
+                disabled={!selectedBeast || isLoading}
+                onClick={handleCreateRoom}
+                className="transition-all duration-300 hover:scale-105 active:scale-95"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Swords className="w-5 h-5 mr-2" />
+                    Create Room
+                  </>
+                )}
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => setView('browse')}
+              >
+                <Users className="w-5 h-5 mr-2" />
+                Browse Rooms
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => setView('join')}
+              >
+                <Hash className="w-5 h-5 mr-2" />
+                Join by Code
+              </Button>
+            </div>
+            {!selectedBeast && (
+              <p className="text-sm text-muted-foreground mt-3 text-center font-mono animate-in fade-in duration-500">
+                Select a beast to begin
+              </p>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  )
+
+  const renderWaitingView = () => (
+    <Card className="max-w-2xl mx-auto">
+      <CardHeader>
+        <div className="flex justify-between items-center">
+          <CardTitle className="text-2xl">Waiting for Opponent</CardTitle>
+          {connectionStatus === 'connected' && (
+            <div className="flex items-center gap-2 text-xs text-green-500">
+              <Wifi className="w-4 h-4" />
+              <span>Connected</span>
+            </div>
+          )}
+          {connectionStatus === 'reconnecting' && (
+            <div className="flex items-center gap-2 text-xs text-yellow-500">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Reconnecting...</span>
+            </div>
+          )}
+          {connectionStatus === 'disconnected' && (
+            <div className="flex items-center gap-2 text-xs text-destructive">
+              <WifiOff className="w-4 h-4" />
+              <span>Disconnected</span>
+            </div>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="text-center space-y-6">
+          <div className="bg-muted p-6 rounded-lg border-2 border-primary/20">
+            <p className="text-sm text-muted-foreground mb-2 font-mono">Room Code</p>
+            <div className="flex items-center justify-center gap-3">
+              <p className="text-4xl font-bold font-mono tracking-wider text-primary">
+                {createdRoom?.room_code}
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCopyRoomCode}
+              >
+                {copiedCode ? (
+                  <>✓ Copied</>
+                ) : (
+                  <><Copy className="w-4 h-4" /></>
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-3 font-mono">
+              Share this code with your opponent
+            </p>
+            
+            {/* Telegram Share Button */}
+            <div className="mt-4 pt-4 border-t border-border">
+              <Button
+                className="w-full"
+                variant="default"
+                onClick={() => shareBattleToTelegram(createdRoom?.room_code || '', createdRoom?.id)}
+              >
+                <Send className="w-4 h-4 mr-2" />
+                Share via Telegram
+              </Button>
+            </div>
+          </div>
+
+          {selectedBeast && (
+            <div className="bg-card p-4 rounded-lg border-2 border-primary/20 animate-in slide-in-from-bottom">
+              <p className="text-xs text-muted-foreground font-mono mb-2">Your Beast</p>
+              <p className="font-bold font-mono text-lg">{selectedBeast.name}</p>
+              <Badge variant="secondary" className="mt-2">LVL {selectedBeast.level}</Badge>
+              <div className="grid grid-cols-3 gap-2 text-xs font-mono mt-3">
+                <div className="flex items-center gap-1 justify-center">
+                  <Zap className="w-3 h-3 text-accent" />
+                  <span>{selectedBeast.attack}</span>
+                </div>
+                <div className="flex items-center gap-1 justify-center">
+                  <Shield className="w-3 h-3 text-blue-500" />
+                  <span>{selectedBeast.defense}</span>
+                </div>
+                <div className="flex items-center gap-1 justify-center">
+                  <Heart className="w-3 h-3 text-destructive" />
+                  <span>{selectedBeast.hp}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showOpponentJoined && opponentBeast && (
+            <div className="bg-accent/20 p-4 rounded-lg border-2 border-accent animate-in slide-in-from-top">
+              <p className="text-xs text-accent font-mono mb-2 font-bold">🎉 Opponent Joined!</p>
+              <p className="font-bold font-mono text-lg">{opponentBeast.name}</p>
+              <Badge variant="secondary" className="mt-2">LVL {opponentBeast.level}</Badge>
+              <div className="grid grid-cols-3 gap-2 text-xs font-mono mt-3">
+                <div className="flex items-center gap-1 justify-center">
+                  <Zap className="w-3 h-3 text-accent" />
+                  <span>{opponentBeast.attack}</span>
+                </div>
+                <div className="flex items-center gap-1 justify-center">
+                  <Shield className="w-3 h-3 text-blue-500" />
+                  <span>{opponentBeast.defense}</span>
+                </div>
+                <div className="flex items-center gap-1 justify-center">
+                  <Heart className="w-3 h-3 text-destructive" />
+                  <span>{opponentBeast.hp}</span>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground font-mono mt-3 text-center">
+                Starting battle...
+              </p>
+            </div>
+          )}
+
+          <div className="flex gap-2 justify-center">
+            <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+            <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+            <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+          </div>
+
+          {error && (
+            <div className="p-3 bg-destructive/10 border border-destructive rounded text-destructive text-sm">
+              {error}
+            </div>
+          )}
+
+          <Button
+            variant="outline"
+            onClick={handleCancelRoom}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Canceling...
+              </>
+            ) : (
+              <>
+                <X className="w-4 h-4 mr-2" />
+                Cancel Room
+              </>
+            )}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+
+  const renderBrowseView = () => (
+    <Card className="max-w-4xl mx-auto">
+      <CardHeader>
+        <div className="flex justify-between items-center">
+          <CardTitle className="text-2xl">Available Rooms</CardTitle>
+          <Button variant="outline" onClick={() => setView('select')}>
+            Back
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {!selectedBeast && (
+          <div className="mb-4 p-3 bg-accent/10 border border-accent rounded text-sm">
+            Select a beast from the main menu before joining a room
+          </div>
+        )}
+
+        {availableRooms.length === 0 ? (
+          <div className="text-center py-12">
+            <Users className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+            <p className="text-muted-foreground mb-4">
+              No rooms available right now
+            </p>
+            <Button onClick={() => setView('select')}>
+              Create a Room
+            </Button>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 gap-4">
+            {availableRooms.map((room) => (
+              <Card key={room.id} className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="text-lg">{room.beast1.name}</CardTitle>
+                      <Badge className="mt-2">
+                        {room.beast1.traits?.type || 'Unknown'}
+                      </Badge>
+                    </div>
+                    <Badge variant="secondary">
+                      LVL {room.beast1.level}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-3 gap-2 text-xs font-mono">
+                    <div className="flex items-center gap-1">
+                      <Zap className="w-3 h-3 text-accent" />
+                      <span>ATK: {room.beast1.attack}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Shield className="w-3 h-3 text-blue-500" />
+                      <span>DEF: {room.beast1.defense}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Heart className="w-3 h-3 text-destructive" />
+                      <span>HP: {room.beast1.hp}</span>
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t">
+                    <p className="text-xs text-muted-foreground font-mono mb-2">
+                      Room Code: <span className="text-primary font-bold">{room.room_code}</span>
+                    </p>
+                    <Button
+                      className="w-full"
+                      disabled={!selectedBeast || isLoading || room.player1_id === userId}
+                      onClick={() => handleJoinRoom(room.room_code)}
+                    >
+                      {room.player1_id === userId ? 'Your Room' : 'Join Battle'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {error && (
+          <div className="mt-4 p-3 bg-destructive/10 border border-destructive rounded text-destructive text-sm">
+            {error}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+
+  const renderJoinView = () => (
+    <Card className="max-w-2xl mx-auto">
+      <CardHeader>
+        <div className="flex justify-between items-center">
+          <CardTitle className="text-2xl">Join by Code</CardTitle>
+          <Button variant="outline" onClick={() => setView('select')}>
+            Back
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {!selectedBeast && (
+          <div className="mb-4 p-3 bg-accent/10 border border-accent rounded text-sm">
+            Select a beast from the main menu before joining a room
+          </div>
+        )}
+
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium mb-2 block">
+              Enter 6-digit Room Code
+            </label>
+            <input
+              type="text"
+              value={roomCodeInput}
+              onChange={(e) => setRoomCodeInput(e.target.value.toUpperCase())}
+              placeholder="ABC123"
+              maxLength={6}
+              className="w-full px-4 py-3 text-2xl font-mono tracking-wider text-center border-2 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary uppercase"
+            />
+          </div>
+
+          {error && (
+            <div className="p-3 bg-destructive/10 border border-destructive rounded text-destructive text-sm">
+              {error}
+            </div>
+          )}
+
+          <Button
+            size="lg"
+            className="w-full"
+            disabled={!selectedBeast || roomCodeInput.length !== 6 || isLoading}
+            onClick={() => handleJoinRoom(roomCodeInput)}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                Joining...
+              </>
+            ) : (
+              <>
+                <Swords className="w-5 h-5 mr-2" />
+                Join Battle
+              </>
+            )}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
 
   return (
     <div className="min-h-screen">
@@ -190,126 +790,10 @@ function PVPBattlePageContent() {
           </p>
         </div>
 
-        <Card className="max-w-4xl mx-auto">
-          <CardHeader>
-            <CardTitle className="text-2xl">Select Your Beast</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {myBeasts.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-muted-foreground mb-4">
-                  You don't have any beasts yet!
-                </p>
-                <Button onClick={() => router.push('/inventory')}>
-                  Go to Inventory
-                </Button>
-              </div>
-            ) : (
-              <>
-                <div className="grid md:grid-cols-2 gap-4 mb-6">
-                  {myBeasts.map((beast, index) => (
-                    <Card
-                      key={beast.id}
-                      className={`cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg active:scale-95 animate-in slide-in-from-bottom ${
-                        selectedBeast?.id === beast.id ? 'ring-4 ring-primary shadow-primary/50' : ''
-                      }`}
-                      style={{ animationDelay: `${index * 100}ms` }}
-                      onClick={() => setSelectedBeast(beast)}
-                    >
-                      <CardHeader>
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <CardTitle className="text-lg">{beast.name}</CardTitle>
-                            <Badge className="mt-2">
-                              {beast.traits?.type || 'Unknown'}
-                            </Badge>
-                          </div>
-                          <Badge variant="secondary">
-                            LVL {beast.level}
-                          </Badge>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        <HealthBar 
-                          value={beast.hp} 
-                          max={beast.max_hp} 
-                          label="HP" 
-                        />
-                        <div className="grid grid-cols-3 gap-2 text-xs font-mono">
-                          <div className="flex items-center gap-1">
-                            <Zap className="w-3 h-3 text-accent" />
-                            <span>ATK: {beast.attack}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Shield className="w-3 h-3 text-blue-500" />
-                            <span>DEF: {beast.defense}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Heart className="w-3 h-3 text-destructive" />
-                            <span>HP: {beast.hp}</span>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-
-                <div className="text-center">
-                  <Button
-                    size="lg"
-                    disabled={!selectedBeast || isSearching}
-                    onClick={handleFindMatch}
-                    className="min-w-64 transition-all duration-300 hover:scale-105 active:scale-95"
-                  >
-                    {isSearching ? (
-                      <>
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Finding Match...
-                      </>
-                    ) : (
-                      <>
-                        <Swords className="w-5 h-5 mr-2" />
-                        Find Match
-                      </>
-                    )}
-                  </Button>
-                  {!selectedBeast && (
-                    <p className="text-sm text-muted-foreground mt-3 font-mono animate-in fade-in duration-500">
-                      Select a beast to begin matchmaking
-                    </p>
-                  )}
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Searching Overlay */}
-        {isSearching && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md animate-in fade-in duration-500">
-            <div className="flex flex-col items-center gap-4 bg-card p-8 rounded-lg border-4 border-primary animate-in zoom-in-95 duration-500 max-w-md mx-4">
-              <Loader2 className="w-16 h-16 animate-spin text-primary" />
-              <h3 className="text-xl font-bold font-mono text-primary animate-pulse">Finding Opponent...</h3>
-              <p className="text-sm text-muted-foreground font-mono text-center">
-                Searching for a worthy challenger
-              </p>
-              <div className="flex gap-2 mt-2">
-                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-              </div>
-              {selectedBeast && (
-                <div className="bg-muted p-4 rounded-sm border-2 border-primary/20 w-full mt-4 animate-in slide-in-from-bottom duration-700">
-                  <div className="text-center">
-                    <p className="text-xs text-muted-foreground font-mono mb-2">Your Beast</p>
-                    <p className="font-bold font-mono">{selectedBeast.name}</p>
-                    <Badge variant="secondary" className="mt-2">LVL {selectedBeast.level}</Badge>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        {view === 'select' && renderSelectView()}
+        {view === 'waiting' && renderWaitingView()}
+        {view === 'browse' && renderBrowseView()}
+        {view === 'join' && renderJoinView()}
       </main>
     </div>
   )

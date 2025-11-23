@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
 // Create a new battle
+// Requirements 9.4, 9.5: Battle creation requires explicit player IDs - no mock matchmaking
+// Both player1_id and player2_id must be provided. For room-based PVP, use /api/battles/rooms instead.
 export async function POST(request: NextRequest) {
   try {
     const { player1_id, player2_id, beast1_id, beast2_id, bet_amount } = await request.json()
 
+    // Requirement 9.4: Require both player1_id and player2_id to be explicitly provided
     if (!player1_id || !player2_id || !beast1_id || !beast2_id) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Missing required fields: player1_id, player2_id, beast1_id, and beast2_id are all required' },
         { status: 400 }
       )
     }

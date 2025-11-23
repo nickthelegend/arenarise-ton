@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Requirement 5.1, 7.3: Query battles table where user is a participant
+    // Requirement 5.1, 7.3, 10.1: Query battles table where user is a participant
     // Get battles where user is player1 or player2
     const { data: battles, error: battlesError } = await supabase
       .from('battles')
@@ -65,7 +65,9 @@ export async function GET(request: NextRequest) {
         enemy_id,
         reward_amount,
         created_at,
-        status
+        status,
+        beast1_id,
+        beast2_id
       `)
       .or(`player1_id.eq.${userId},player2_id.eq.${userId}`)
       .order('created_at', { ascending: false })
@@ -78,12 +80,43 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Requirement 5.1: Join with enemy/player data and format results
+    // Requirement 5.1, 10.2, 10.5: Join with enemy/player data and format results
     const battleHistory = await Promise.all(
       (battles || []).map(async (battle) => {
         let opponentName = 'Unknown'
+        let beast1Name = 'Unknown'
+        let beast2Name = 'Unknown'
+        let beast1Hp = 0
+        let beast2Hp = 0
         
-        // Determine opponent based on battle type
+        // Fetch beast information for battle summary (Requirement 10.5)
+        if (battle.beast1_id) {
+          const { data: beast1 } = await supabase
+            .from('beasts')
+            .select('name, hp')
+            .eq('id', battle.beast1_id)
+            .single()
+          
+          if (beast1) {
+            beast1Name = beast1.name
+            beast1Hp = beast1.hp || 0
+          }
+        }
+
+        if (battle.beast2_id) {
+          const { data: beast2 } = await supabase
+            .from('beasts')
+            .select('name, hp')
+            .eq('id', battle.beast2_id)
+            .single()
+          
+          if (beast2) {
+            beast2Name = beast2.name
+            beast2Hp = beast2.hp || 0
+          }
+        }
+        
+        // Determine opponent based on battle type (Requirement 10.2)
         if (battle.battle_type === 'pve') {
           // PVE battle - opponent is an enemy
           opponentName = battle.enemy_id ? getEnemyName(battle.enemy_id) : 'Unknown Enemy'
@@ -107,7 +140,7 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // Requirement 5.2, 5.3, 5.4: Determine outcome and reward
+        // Requirement 5.2, 5.3, 5.4, 10.2: Determine outcome and reward
         const won = battle.winner_id === userId
         const reward = battle.reward_amount ? Number(battle.reward_amount) : 0
 
@@ -117,7 +150,12 @@ export async function GET(request: NextRequest) {
           battle_type: battle.battle_type,
           won: won,
           reward: reward,
-          created_at: battle.created_at
+          created_at: battle.created_at,
+          status: battle.status, // Requirement 10.3
+          beast1_name: beast1Name, // Requirement 10.5
+          beast2_name: beast2Name, // Requirement 10.5
+          beast1_hp: beast1Hp, // Requirement 10.5
+          beast2_hp: beast2Hp // Requirement 10.5
         }
       })
     )

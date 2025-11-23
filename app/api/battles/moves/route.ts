@@ -48,9 +48,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if battle should end
+    // Check if battle should end (Requirement 8.1)
     if (target_hp_remaining <= 0) {
-      // Update battle as completed
+      // Battle ended - opponent's HP reached 0
+      // The player who made this move is the winner
+      
+      // Update battle as completed (Requirement 8.2)
       await supabase
         .from('battles')
         .update({
@@ -59,7 +62,41 @@ export async function POST(request: NextRequest) {
         })
         .eq('id', battle_id)
 
-      return NextResponse.json({ battleMove, battle_ended: true, winner_id: player_id })
+      // For PVP battles, award rewards (Requirement 8.4)
+      // Calculate reward (200 RISE for winner)
+      const rewardAmount = 200
+      
+      // Get winner's wallet address
+      const { data: winner, error: winnerError } = await supabase
+        .from('users')
+        .select('wallet_address')
+        .eq('id', player_id)
+        .single()
+
+      let rewardStatus: 'completed' | 'failed' | 'pending' | 'none' = 'none'
+      
+      if (!winnerError && winner?.wallet_address) {
+        // For now, mark as pending - actual token transfer would happen here
+        // In production, you'd call requestRiseTokens here
+        rewardStatus = 'pending'
+        
+        // Update battle with reward info (Requirement 8.4)
+        await supabase
+          .from('battles')
+          .update({
+            reward_amount: rewardAmount,
+            reward_status: rewardStatus
+          })
+          .eq('id', battle_id)
+      }
+
+      return NextResponse.json({ 
+        battleMove, 
+        battle_ended: true, 
+        winner_id: player_id,
+        reward_amount: rewardAmount,
+        reward_status: rewardStatus
+      })
     }
 
     // Switch turn

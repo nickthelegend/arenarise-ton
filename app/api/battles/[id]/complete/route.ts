@@ -69,6 +69,8 @@ export async function POST(
 
     // Requirement 6.2: Validate player is participant
     // For PVE battles, player is always player1_id
+    // For PVP battles, player can be player1_id or player2_id
+    const isPVP = battle.battle_type === 'pvp'
     const playerId = battle.player1_id
     if (!playerId) {
       return NextResponse.json(
@@ -105,12 +107,21 @@ export async function POST(
       )
     }
 
-    // Requirement 4.1: Calculate reward (200 RISE for wins, 0 for losses)
+    // Requirement 4.1 & 8.4: Calculate reward (200 RISE for wins, 0 for losses)
     const rewardAmount = calculateReward(winner)
     console.log('Calculated reward:', rewardAmount, 'RISE')
 
-    // Update battle record with completion status and winner
-    const winnerId = winner === 'player' ? playerId : null
+    // Requirement 8.2: Update battle record with completion status and winner
+    // For PVE: winner_id is player1_id if player wins, null if enemy wins
+    // For PVP: winner_id is player1_id if player wins, player2_id if opponent wins
+    let winnerId: string | null = null
+    if (winner === 'player') {
+      winnerId = playerId
+    } else if (isPVP && battle.player2_id) {
+      // For PVP, if player loses, the opponent (player2) wins
+      winnerId = battle.player2_id
+    }
+    // For PVE, if enemy wins, winnerId remains null
     
     console.log('Updating battle status to completed...')
     const { error: updateError } = await supabase
@@ -133,21 +144,21 @@ export async function POST(
     
     console.log('Battle updated successfully')
 
-    // Requirement 4.2: Award RISE tokens
+    // Requirement 4.2 & 8.4: Award RISE tokens to winner
     let rewardStatus: 'completed' | 'failed' | 'pending' | 'none' = 'none'
     let transferDetails: any = null
     
-    if (rewardAmount > 0) {
+    if (rewardAmount > 0 && winnerId) {
       try {
-        // Get player wallet address from database
-        const { data: player, error: playerError } = await supabase
+        // Get winner's wallet address from database
+        const { data: winnerUser, error: winnerError } = await supabase
           .from('users')
           .select('wallet_address')
-          .eq('id', playerId)
+          .eq('id', winnerId)
           .single()
 
-        if (playerError || !player?.wallet_address) {
-          console.error(`Player wallet not found: ${playerError?.message}`)
+        if (winnerError || !winnerUser?.wallet_address) {
+          console.error(`Winner wallet not found: ${winnerError?.message}`)
           rewardStatus = 'pending'
           
           // Mark battle as reward_pending - will retry later
@@ -157,18 +168,18 @@ export async function POST(
             .eq('id', battleId)
         } else {
           // Log transfer attempt
-          console.log(`Initiating RISE transfer: ${rewardAmount} RISE to player ${playerId} (${player.wallet_address})`)
+          console.log(`Initiating RISE transfer: ${rewardAmount} RISE to winner ${winnerId} (${winnerUser.wallet_address})`)
           
           // Request RISE token transfer
           const transferResult = await requestRiseTokens(
-            player.wallet_address,
+            winnerUser.wallet_address,
             rewardAmount
           )
           
           // Log successful transfer details
           console.log(`RISE transfer successful:`, {
             battleId,
-            playerId,
+            winnerId,
             amount: rewardAmount,
             fromWallet: transferResult.fromWallet,
             toWallet: transferResult.toWallet,
@@ -196,7 +207,7 @@ export async function POST(
         // Requirement 6.5: Handle transfer failures gracefully
         console.error(`RISE transfer failed:`, {
           battleId,
-          playerId,
+          winnerId,
           amount: rewardAmount,
           error: transferError.message,
           isRetryable: transferError instanceof RiseTransferError ? transferError.isRetryable : false

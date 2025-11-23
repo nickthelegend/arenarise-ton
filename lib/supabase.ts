@@ -47,13 +47,18 @@ export interface Move {
 export interface Battle {
   id: string
   player1_id: string
-  player2_id: string
+  player2_id: string | null
   beast1_id: number
-  beast2_id: number
+  beast2_id: number | null
   winner_id: string | null
   status: 'waiting' | 'in_progress' | 'completed'
   current_turn: string | null
   bet_amount: number
+  room_code?: string | null
+  battle_type?: 'pvp' | 'pve'
+  enemy_id?: number | null
+  reward_amount?: number
+  reward_status?: 'none' | 'pending' | 'completed' | 'failed'
   created_at: string
   updated_at: string
 }
