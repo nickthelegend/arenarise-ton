@@ -156,23 +156,34 @@ export function Navbar() {
               <>
                 <Link
                   href="/profile"
-                  className="hidden md:flex items-center gap-1.5 md:gap-3 bg-muted px-2 py-1 md:px-4 md:py-2 border-2 border-primary hover:border-accent transition-colors cursor-pointer"
-                  title="View Profile"
+                  className="hidden md:flex items-center gap-2 bg-muted px-3 py-2 border-2 border-primary hover:border-accent transition-colors cursor-pointer max-w-[140px]"
+                  title={`${formatRiseBalance(riseBalance, 2)} RISE tokens`}
                 >
-                  <Coins className="w-3.5 h-3.5 md:w-5 md:h-5 text-accent" />
-                  <div className="flex flex-col">
-                    <span className="text-[10px] md:text-xs text-muted-foreground font-mono">$RISE</span>
-                    <span className="text-xs md:text-sm font-bold text-foreground font-mono">
-                      {isLoadingBalance ? '...' : formatRiseBalance(riseBalance, 2)}
+                  <Coins className="w-4 h-4 text-accent flex-shrink-0" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[10px] text-muted-foreground font-mono">$RISE</span>
+                    <span className="text-xs font-bold text-foreground font-mono truncate">
+                      {isLoadingBalance ? '...' : (() => {
+                        // Format large numbers compactly (always round down)
+                        if (riseBalance >= 1000000) {
+                          const millions = Math.floor(riseBalance / 100000) / 10
+                          return `${millions}M`
+                        } else if (riseBalance >= 1000) {
+                          const thousands = Math.floor(riseBalance / 100) / 10
+                          return `${thousands}K`
+                        } else {
+                          return Math.floor(riseBalance).toString()
+                        }
+                      })()}
                     </span>
                   </div>
                 </Link>
                 <Link
                   href="/swap"
-                  className="hidden md:flex items-center justify-center w-8 h-8 md:w-10 md:h-10 bg-accent hover:bg-accent/90 border-2 border-accent transition-colors"
+                  className="hidden md:flex items-center justify-center w-10 h-10 bg-accent hover:bg-accent/90 border-2 border-accent transition-colors flex-shrink-0"
                   title="Buy/Sell $RISE"
                 >
-                  <Plus className="w-4 h-4 md:w-5 md:h-5 text-accent-foreground" />
+                  <Plus className="w-5 h-5 text-accent-foreground" />
                 </Link>
               </>
             )}
