@@ -44,6 +44,11 @@ export default function CreatePage() {
       return
     }
 
+    // Prevent duplicate calls
+    if (isGenerating) {
+      return
+    }
+
     setIsGenerating(true)
     setError(null)
     setGeneratedBeast(null)

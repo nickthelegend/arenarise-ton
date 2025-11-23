@@ -39,6 +39,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Check if beast with this request_id already exists
+    console.log('🔍 Checking for existing beast with request_id:', mintData.requestId)
+    const { data: existingBeast, error: checkError } = await supabase
+      .from('beasts')
+      .select()
+      .eq('request_id', mintData.requestId)
+      .single()
+
+    if (existingBeast) {
+      console.log('⚠️ Beast already exists for this request_id, returning existing beast')
+      return NextResponse.json({
+        success: true,
+        beast: existingBeast,
+        mintData,
+        message: 'Beast already created for this request'
+      }, { status: 200 })
+    }
+
     // Extract beast data
     console.log('🏗️ Extracting beast data from mint response...')
     const beastData = {
